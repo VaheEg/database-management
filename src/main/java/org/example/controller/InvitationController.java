@@ -30,7 +30,7 @@ public class InvitationController {
 
     @PostMapping
     @Operation(summary = "Invite a user to one of your databases",
-            description = "Starts as PENDING. Only the owner of that database may send it.")
+            description = "Starts as PENDING. Only a premium user who owns that database may send it.")
     public ResponseEntity<InvitationResponse> create(@Valid @RequestBody InvitationRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(invitationService.create(request));
     }

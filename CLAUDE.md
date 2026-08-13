@@ -57,6 +57,10 @@ are the only open paths). Everything finer-grained is a service-layer check:
 - `InvitationService.hasPermission(userId, dbConnectionId, permission)` is the single authorization
   question for shared access: owner passes automatically, everyone else needs an ACCEPTED
   invitation carrying that permission for that database.
+- Sending an invitation is premium-gated: `InvitationService.create` requires a `PREMIUM_USERS`
+  row for the sender. It asks `premiumUserRepository.existsByUserId`, not the token's authorities,
+  because roles are frozen into the JWT at login and an upgrade must not need a re-login to work.
+  Only `create` is gated — answering, revoking and deleting stay open to the parties involved.
 
 **Auth flow.** `JwtService` issues HS256 tokens carrying `uid`, `roles`, and a `jti`.
 `JwtAuthFilter` rebuilds an `AppUserDetails` straight from the claims (no DB hit) and skips any

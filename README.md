@@ -83,7 +83,7 @@ curl -s -X POST localhost:8080/api/auth/logout -H "Authorization: Bearer $TOKEN"
 | Users | `/api/users` | Anyone signed in can read; you can only change or deactivate your own account. |
 | Profiles | `/api/user-information` | Your own personal details, one row per account. |
 | Databases | `/api/db-connections` | Your external databases. Passwords are encrypted at rest and never returned. |
-| Sharing | `/api/invitations` | Owner sends, recipient accepts or declines, sender revokes. |
+| Sharing | `/api/invitations` | Premium owner sends, recipient accepts or declines, sender revokes. |
 | Audit log | `/api/audit-logs` | Append-only. `/connection/{id}` is the trail for one database, owner only. |
 | Application roles | `/api/roles` | USER, PREMIUM — seeded at startup. |
 | Database permissions | `/api/additional-roles` | SELECT/INSERT/UPDATE/DELETE_ROLE — what an invitation grants. |
@@ -106,6 +106,9 @@ Errors always come back in the same shape:
 - **Ownership and grants.** The owner of a database can do anything with it. Anyone else
   needs an `ACCEPTED` invitation for *that* database; a permission on database A says
   nothing about the same owner's database B.
+- **Sharing is premium-only.** Sending an invitation requires a `PREMIUM_USERS` row, so a
+  free account can register databases but cannot hand access to anybody else. The check
+  reads that row rather than the token's roles, so an upgrade takes effect immediately.
 - **Logout** works by remembering the token's `jti` until it would have expired
   (`RevokedTokenStore`). It is in-memory, which means a restart forgets the revocations
   and a multi-instance deployment would need a shared store (Redis, or a small table).

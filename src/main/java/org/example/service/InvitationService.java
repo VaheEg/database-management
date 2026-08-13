@@ -15,6 +15,7 @@ import org.example.exception.NotFoundException;
 import org.example.repository.AdditionalRoleRepository;
 import org.example.repository.DbConnectionDetailsRepository;
 import org.example.repository.InvitationRepository;
+import org.example.repository.PremiumUserRepository;
 import org.example.repository.UserRepository;
 import org.example.security.CurrentUserService;
 import org.springframework.stereotype.Service;
@@ -30,6 +31,7 @@ import java.util.List;
  *
  * <p>Who may do what is the whole point of this class:
  * <ul>
+ *   <li>only a <b>premium</b> user may send an invitation at all;</li>
  *   <li>only the <b>owner of that database</b> may send an invitation for it;</li>
  *   <li>only the <b>recipient</b> may accept or decline it;</li>
  *   <li>only the <b>sender</b> may revoke or delete it.</li>
@@ -46,15 +48,20 @@ public class InvitationService {
     private final UserRepository userRepository;
     private final DbConnectionDetailsRepository dbConnectionDetailsRepository;
     private final AdditionalRoleRepository additionalRoleRepository;
+    private final PremiumUserRepository premiumUserRepository;
     private final CurrentUserService currentUserService;
     private final AuditLogService auditLogService;
 
-    /** Sends an invitation. The sender is the caller, who must own the database. */
     @Transactional
     public InvitationResponse create(InvitationRequest request) {
         Long senderId = currentUserService.requireId();
         if (request.getFromUserId() != null && !request.getFromUserId().equals(senderId)) {
             throw new AccessDeniedException("You can only send invitations from your own account");
+        }
+        if (!premiumUserRepository.existsByUserId(senderId)) {
+            throw new AccessDeniedException(
+                    "Sharing a database is a premium feature — connect and verify an email "
+                            + "address via /api/premium-users/request-code first");
         }
         if (request.getToUserId().equals(senderId)) {
             throw new BadRequestException("You already own this database — there is nothing to grant yourself");
