@@ -15,7 +15,6 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class PremiumUserRequest {
 
-    /** Optional: the upgrade always applies to the authenticated caller. */
     @Schema(description = "Optional — the upgrade applies to the authenticated caller")
     private Long userId;
 

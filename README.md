@@ -57,6 +57,12 @@ java -jar build/libs/DatabaseManagment-0.0.1-SNAPSHOT.jar
 5. **POST /api/auth/logout** revokes the token you are holding; calling anything with it
    afterwards returns 401. Log in again for a new one.
 
+To try the premium upgrade without a mail server, call **9. Premium → POST
+/api/premium-users/request-code** and read the six-digit code out of the application log
+(`Verification code for … is …`), then send it to **POST /api/premium-users/confirm**.
+Logging the code instead of sending it is what happens whenever
+`app.verification.mail-enabled` is off, which is the default — see below.
+
 The same flow with curl:
 
 ```bash
@@ -81,7 +87,7 @@ curl -s -X POST localhost:8080/api/auth/logout -H "Authorization: Bearer $TOKEN"
 | Audit log | `/api/audit-logs` | Append-only. `/connection/{id}` is the trail for one database, owner only. |
 | Application roles | `/api/roles` | USER, PREMIUM — seeded at startup. |
 | Database permissions | `/api/additional-roles` | SELECT/INSERT/UPDATE/DELETE_ROLE — what an invitation grants. |
-| Premium | `/api/premium-users` | Connect an email to gain the PREMIUM role. |
+| Premium | `/api/premium-users` | `request-code` then `confirm`: an email address gains the PREMIUM role once a code sent to it comes back. |
 
 Errors always come back in the same shape:
 
@@ -105,6 +111,12 @@ Errors always come back in the same shape:
   and a multi-instance deployment would need a shared store (Redis, or a small table).
 - **Roles live in the token**, so a role change (for example becoming premium) shows up
   after the next login.
+- **Becoming premium takes two calls**, because an address nobody proved they can read is
+  not evidence of anything: `request-code` mails a six-digit code and writes nothing to the
+  account, `confirm` checks the code and only then grants the role. Only the BCrypt hash of
+  the code is stored, it expires after ten minutes, five wrong guesses destroy it, and one
+  address can belong to one account. Changing a connected address goes through the same two
+  calls.
 - **Deactivating an account** is a soft delete: `enabled` goes to false so login stops
   working, while the audit trail and registered databases stay meaningful.
 
@@ -115,6 +127,10 @@ Errors always come back in the same shape:
 | `app.jwt.secret` | `APP_JWT_SECRET` | Anyone holding it can mint valid tokens. Minimum 32 characters. |
 | `app.crypto.secret` | `APP_CRYPTO_SECRET` | Protects stored database passwords. Changing it makes existing ones unreadable. |
 | `app.jwt.expiration` | — | Token lifetime, default `12h`. |
+| `app.verification.mail-enabled` | `APP_MAIL_ENABLED` | **Set it to `true`.** While it is off, verification codes are written to the application log instead of being emailed, so anyone who can read the log can verify anyone's address. |
+| `spring.mail.host` and friends | — | The SMTP server the codes go through. Required once the switch above is on; without it the context will not start. |
+| `app.verification.mail-from` | `APP_MAIL_FROM` | From address on the code emails. Most providers insist it be one of theirs. |
+| `app.verification.code-ttl` | — | How long a code works, default `10m`. Also `max-attempts` (5) and `resend-interval` (60s). |
 | `springdoc.swagger-ui.enabled` | — | Set to `false` to stop serving the docs. |
 
 ## 6. Not built yet

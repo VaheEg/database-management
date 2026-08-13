@@ -1,6 +1,8 @@
 package org.example.service;
 
 import lombok.RequiredArgsConstructor;
+import org.example.dto.MessageResponse;
+import org.example.dto.PremiumUserConfirmRequest;
 import org.example.dto.PremiumUserRequest;
 import org.example.dto.PremiumUserResponse;
 import org.example.entity.PremiumUser;
@@ -18,17 +20,10 @@ import org.example.security.CurrentUserService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 
-/**
- * Premium status, which a user gains by connecting an email address.
- *
- * <p>Connecting the email does two things: it records the link here, and it adds the
- * application-level {@link RoleName#PREMIUM} role to the account. Roles are baked into
- * a token when it is issued, so the change shows up in {@code /api/auth/me} only after
- * the user logs in again.
- */
 @Service
 @RequiredArgsConstructor
 public class PremiumUserService {
@@ -38,31 +33,51 @@ public class PremiumUserService {
     private final RoleRepository roleRepository;
     private final UserRoleRepository userRoleRepository;
     private final CurrentUserService currentUserService;
+    private final EmailVerificationService emailVerificationService;
+    private final AuditLogService auditLogService;
 
-    @Transactional
-    public PremiumUserResponse create(PremiumUserRequest request) {
+
+    @Transactional(noRollbackFor = BadRequestException.class)
+    public MessageResponse requestCode(PremiumUserRequest request) {
         Long userId = currentUserService.requireId();
         if (request.getUserId() != null && !request.getUserId().equals(userId)) {
             currentUserService.requireSelf(request.getUserId(), "upgrade your own account");
         }
-        if (premiumUserRepository.existsByUserId(userId)) {
-            throw new BadRequestException("This account is already premium");
-        }
 
-        String email = request.getConnectedEmail().trim().toLowerCase(Locale.ROOT);
-        premiumUserRepository.findByConnectedEmail(email).ifPresent(existing -> {
-            throw new BadRequestException("Email '" + email + "' is already connected to another account");
+        String email = normalise(request.getConnectedEmail());
+        rejectIfConnectedElsewhere(email, userId);
+        premiumUserRepository.findByUserId(userId).ifPresent(existing -> {
+            if (existing.getConnectedEmail().equals(email)) {
+                throw new BadRequestException("This account is already premium with that address");
+            }
         });
+
+        Instant expiresAt = emailVerificationService.issue(userId, email);
+        return new MessageResponse("A verification code was sent to " + email
+                + ". It stops working at " + expiresAt + ".");
+    }
+
+    @Transactional(noRollbackFor = BadRequestException.class)
+    public PremiumUserResponse confirm(PremiumUserConfirmRequest request) {
+        Long userId = currentUserService.requireId();
+        String email = normalise(request.getConnectedEmail());
+        rejectIfConnectedElsewhere(email, userId);
+
+        emailVerificationService.consume(userId, email, request.getCode());
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> NotFoundException.of("User", userId));
+        PremiumUser premiumUser = premiumUserRepository.findByUserId(userId)
+                .orElseGet(PremiumUser::new);
+        boolean firstTime = premiumUser.getId() == null;
 
-        PremiumUser premiumUser = new PremiumUser();
         premiumUser.setUser(user);
         premiumUser.setConnectedEmail(email);
         PremiumUser saved = premiumUserRepository.save(premiumUser);
 
         grantPremiumRole(user);
+        auditLogService.record(userId, null,
+                firstTime ? "PREMIUM_ACTIVATED" : "PREMIUM_EMAIL_CHANGED", email, true);
         return toResponse(saved);
     }
 
@@ -80,29 +95,15 @@ public class PremiumUserService {
                 .orElseGet(List::of);
     }
 
-    /** Changes the connected email; premium status itself is unaffected. */
-    @Transactional
-    public PremiumUserResponse update(Long id, PremiumUserRequest request) {
-        PremiumUser premiumUser = findOwnOrThrow(id);
-        String email = request.getConnectedEmail().trim().toLowerCase(Locale.ROOT);
-
-        premiumUserRepository.findByConnectedEmail(email).ifPresent(existing -> {
-            if (!existing.getId().equals(premiumUser.getId())) {
-                throw new BadRequestException("Email '" + email + "' is already connected to another account");
-            }
-        });
-
-        premiumUser.setConnectedEmail(email);
-        return toResponse(premiumUserRepository.save(premiumUser));
-    }
-
     /** Disconnects the email, which drops the account back to a normal user. */
     @Transactional
     public void delete(Long id) {
         PremiumUser premiumUser = findOwnOrThrow(id);
         Long userId = premiumUser.getUser().getId();
+        String email = premiumUser.getConnectedEmail();
         premiumUserRepository.delete(premiumUser);
         revokePremiumRole(userId);
+        auditLogService.record(userId, null, "PREMIUM_DEACTIVATED", email, true);
     }
 
     private PremiumUser findOwnOrThrow(Long id) {
@@ -110,6 +111,16 @@ public class PremiumUserService {
                 .orElseThrow(() -> NotFoundException.of("Premium user", id));
         currentUserService.requireSelf(premiumUser.getUser().getId(), "read or change your own premium link");
         return premiumUser;
+    }
+
+    /** One address, one account — checked before a code is sent and again before it is honoured. */
+    private void rejectIfConnectedElsewhere(String email, Long userId) {
+        premiumUserRepository.findByConnectedEmail(email).ifPresent(existing -> {
+            if (!existing.getUser().getId().equals(userId)) {
+                throw new BadRequestException(
+                        "Email '" + email + "' is already connected to another account");
+            }
+        });
     }
 
     private void grantPremiumRole(User user) {
@@ -129,6 +140,10 @@ public class PremiumUserService {
         roleRepository.findByName(RoleName.PREMIUM)
                 .flatMap(premium -> userRoleRepository.findByUserIdAndRoleId(userId, premium.getId()))
                 .ifPresent(userRoleRepository::delete);
+    }
+
+    private static String normalise(String email) {
+        return email.trim().toLowerCase(Locale.ROOT);
     }
 
     private static PremiumUserResponse toResponse(PremiumUser premiumUser) {
