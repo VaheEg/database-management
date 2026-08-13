@@ -1,5 +1,7 @@
 package org.example.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.example.dto.InvitationRequest;
@@ -21,11 +23,14 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/invitations")
 @RequiredArgsConstructor
+@Tag(name = "5. Sharing", description = "Grant another user one permission on one of your databases")
 public class InvitationController {
 
     private final InvitationService invitationService;
 
     @PostMapping
+    @Operation(summary = "Invite a user to one of your databases",
+            description = "Starts as PENDING. Only the owner of that database may send it.")
     public ResponseEntity<InvitationResponse> create(@Valid @RequestBody InvitationRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(invitationService.create(request));
     }
@@ -41,6 +46,8 @@ public class InvitationController {
     }
 
     @PutMapping("/{id}")
+    @Operation(summary = "Answer or revoke an invitation",
+            description = "status = ACCEPTED or DECLINED by the recipient, REVOKED by the sender.")
     public ResponseEntity<InvitationResponse> update(@PathVariable("id") Long id,
                                                      @Valid @RequestBody InvitationRequest request) {
         return ResponseEntity.ok(invitationService.update(id, request));

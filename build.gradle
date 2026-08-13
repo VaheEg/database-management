@@ -19,6 +19,7 @@ repositories {
 
 ext {
     jjwtVersion = '0.12.6'
+    springdocVersion = '3.1.0'
 }
 
 dependencies {
@@ -32,6 +33,9 @@ dependencies {
     implementation "io.jsonwebtoken:jjwt-api:${jjwtVersion}"
     runtimeOnly "io.jsonwebtoken:jjwt-impl:${jjwtVersion}"
     runtimeOnly "io.jsonwebtoken:jjwt-jackson:${jjwtVersion}"
+
+    // Swagger UI + OpenAPI 3 description of every endpoint, served by the app itself.
+    implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:${springdocVersion}"
 
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'

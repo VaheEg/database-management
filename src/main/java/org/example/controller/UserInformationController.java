@@ -1,5 +1,6 @@
 package org.example.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.example.dto.UserInformationRequest;
@@ -21,6 +22,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/user-information")
 @RequiredArgsConstructor
+@Tag(name = "3. Profiles", description = "The optional personal details attached to your own account")
 public class UserInformationController {
 
     private final UserInformationService userInformationService;

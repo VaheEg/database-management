@@ -1,6 +1,8 @@
 package org.example.service;
 
+import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.example.dto.AuthResponse;
 import org.example.dto.LoginRequest;
 import org.example.dto.RegisterRequest;
@@ -13,6 +15,7 @@ import org.example.repository.RoleRepository;
 import org.example.repository.UserRepository;
 import org.example.security.AppUserDetails;
 import org.example.security.JwtService;
+import org.example.security.RevokedTokenStore;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -26,10 +29,12 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * Registration and login. Everything else in the API assumes a token issued here.
+ * Registration, login, and logout. Everything else in the API assumes a token
+ * issued here.
  */
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AuthService {
 
     private static final String ROLE_PREFIX = "ROLE_";
@@ -39,6 +44,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
+    private final RevokedTokenStore revokedTokenStore;
 
     /**
      * Creates an account with the default {@link RoleName#USER} role and returns a
@@ -97,11 +103,33 @@ public class AuthService {
         return issueToken(principal.getId(), principal.getUsername(), roles);
     }
 
+    /**
+     * Revokes the token the caller presented, so it stops working immediately instead
+     * of remaining valid until it expires.
+     *
+     * <p>Only this one token is affected: another device that logged in separately
+     * holds a different token and stays signed in.
+     *
+     * @param authorizationHeader the request's {@code Authorization} header
+     */
+    public void logout(String authorizationHeader) {
+        String token = JwtService.stripBearer(authorizationHeader)
+                .orElseThrow(() -> new BadRequestException(
+                        "Expected an 'Authorization: Bearer <token>' header to log out"));
+
+        Claims claims = jwtService.parse(token)
+                .orElseThrow(() -> new BadRequestException("The presented token is not valid"));
+
+        Instant expiresAt = JwtService.expiresAt(claims).orElse(Instant.now().plus(jwtService.expiration()));
+        revokedTokenStore.revoke(claims.getId(), expiresAt);
+        log.debug("Token {} for user '{}' revoked", claims.getId(), claims.getSubject());
+    }
+
     private AuthResponse issueToken(Long userId, String username, List<String> roles) {
-        String token = jwtService.generateToken(userId, username, roles);
+        JwtService.IssuedToken issued = jwtService.issue(userId, username, roles);
         return AuthResponse.builder()
-                .token(token)
-                .expiresAt(jwtService.expiresAt(Instant.now()))
+                .token(issued.token())
+                .expiresAt(issued.expiresAt())
                 .userId(userId)
                 .username(username)
                 .roles(roles)

@@ -21,20 +21,19 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Reads a {@code Bearer} token off the request and, if it verifies, populates the
- * security context for the rest of the chain.
+ * Reads a {@code Bearer} token off the request and, if it verifies and has not been
+ * logged out, populates the security context for the rest of the chain.
  *
  * <p>A missing or invalid token is not an error here — the request simply stays
  * anonymous and the authorization rules decide what happens next. That keeps
- * {@code /api/auth/**} usable without a token.
+ * {@code /api/auth/register} and {@code /api/auth/login} usable without a token.
  */
 @Component
 @RequiredArgsConstructor
 public class JwtAuthFilter extends OncePerRequestFilter {
 
-    private static final String BEARER_PREFIX = "Bearer ";
-
     private final JwtService jwtService;
+    private final RevokedTokenStore revokedTokenStore;
 
     @Override
     protected void doFilterInternal(@NonNull HttpServletRequest request,
@@ -46,13 +45,16 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             return;
         }
 
-        Optional<String> token = bearerToken(request);
+        Optional<String> token = JwtService.stripBearer(request.getHeader(HttpHeaders.AUTHORIZATION));
         if (token.isEmpty()) {
             filterChain.doFilter(request, response);
             return;
         }
 
-        jwtService.parse(token.get()).ifPresent(claims -> authenticate(claims, request));
+        jwtService.parse(token.get())
+                // A logged-out token verifies perfectly well; it is the store that rejects it.
+                .filter(claims -> !revokedTokenStore.isRevoked(claims.getId()))
+                .ifPresent(claims -> authenticate(claims, request));
         filterChain.doFilter(request, response);
     }
 
@@ -86,14 +88,5 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 .map(String.class::cast)
                 .map(role -> (GrantedAuthority) new SimpleGrantedAuthority(AppUserDetails.authorityOf(role)))
                 .toList();
-    }
-
-    private Optional<String> bearerToken(HttpServletRequest request) {
-        String header = request.getHeader(HttpHeaders.AUTHORIZATION);
-        if (header == null || !header.startsWith(BEARER_PREFIX)) {
-            return Optional.empty();
-        }
-        String token = header.substring(BEARER_PREFIX.length()).trim();
-        return token.isEmpty() ? Optional.empty() : Optional.of(token);
     }
 }

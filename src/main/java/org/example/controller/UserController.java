@@ -1,5 +1,7 @@
 package org.example.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.example.dto.UserRequest;
@@ -21,6 +23,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/users")
 @RequiredArgsConstructor
+@Tag(name = "2. Users", description = "Accounts. Reads are open to any signed-in user; writes are limited to your own account")
 public class UserController {
 
     private final UserService userService;
@@ -47,6 +50,9 @@ public class UserController {
     }
 
     @DeleteMapping("/{id}")
+    @Operation(summary = "Deactivate your own account",
+            description = "A soft delete: the account can no longer log in, but its audit trail, "
+                    + "registered databases and invitations stay intact.")
     public ResponseEntity<Void> delete(@PathVariable("id") Long id) {
         userService.delete(id);
         return ResponseEntity.noContent().build();

@@ -1,6 +1,6 @@
 package org.example.dto;
 
-import jakarta.validation.constraints.NotNull;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -15,7 +15,8 @@ import java.time.LocalDate;
 @AllArgsConstructor
 public class UserInformationRequest {
 
-    @NotNull
+    /** Optional: the profile always belongs to the authenticated caller. */
+    @Schema(description = "Optional — the profile belongs to the authenticated caller")
     private Long userId;
 
     @Size(max = 100)

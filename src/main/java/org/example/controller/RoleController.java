@@ -1,5 +1,6 @@
 package org.example.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.example.dto.RoleRequest;
@@ -21,6 +22,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/roles")
 @RequiredArgsConstructor
+@Tag(name = "7. Application roles", description = "USER and PREMIUM — seeded at startup")
 public class RoleController {
 
     private final RoleService roleService;

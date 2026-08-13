@@ -1,5 +1,6 @@
 package org.example.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.example.dto.AdditionalRoleRequest;
@@ -21,6 +22,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/additional-roles")
 @RequiredArgsConstructor
+@Tag(name = "8. Database permissions", description = "SELECT_ROLE, INSERT_ROLE, UPDATE_ROLE, DELETE_ROLE — the values an invitation grants")
 public class AdditionalRoleController {
 
     private final AdditionalRoleService additionalRoleService;

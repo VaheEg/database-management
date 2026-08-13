@@ -1,5 +1,7 @@
 package org.example.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.example.dto.PremiumUserRequest;
@@ -21,11 +23,14 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/premium-users")
 @RequiredArgsConstructor
+@Tag(name = "9. Premium", description = "Connect an email address to upgrade your account")
 public class PremiumUserController {
 
     private final PremiumUserService premiumUserService;
 
     @PostMapping
+    @Operation(summary = "Connect an email and become premium",
+            description = "Adds the PREMIUM role. Log in again for a token that carries it.")
     public ResponseEntity<PremiumUserResponse> create(@Valid @RequestBody PremiumUserRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(premiumUserService.create(request));
     }

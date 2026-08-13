@@ -1,8 +1,8 @@
 package org.example.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -15,7 +15,8 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class PremiumUserRequest {
 
-    @NotNull
+    /** Optional: the upgrade always applies to the authenticated caller. */
+    @Schema(description = "Optional — the upgrade applies to the authenticated caller")
     private Long userId;
 
     @NotBlank

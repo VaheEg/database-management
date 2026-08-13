@@ -1,5 +1,6 @@
 package org.example.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -13,7 +14,8 @@ import org.example.entity.InvitationStatus;
 @AllArgsConstructor
 public class InvitationRequest {
 
-    @NotNull
+    /** Optional: the sender is always the authenticated caller. */
+    @Schema(description = "Optional — the sender is the authenticated caller")
     private Long fromUserId;
 
     @NotNull

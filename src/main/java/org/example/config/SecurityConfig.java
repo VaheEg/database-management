@@ -4,6 +4,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.example.exception.ApiError;
+import org.example.security.CryptoProperties;
 import org.example.security.JwtAuthFilter;
 import org.example.security.JwtProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -28,7 +29,7 @@ import tools.jackson.databind.ObjectMapper;
 import java.io.IOException;
 
 @Configuration
-@EnableConfigurationProperties(JwtProperties.class)
+@EnableConfigurationProperties({JwtProperties.class, CryptoProperties.class})
 @RequiredArgsConstructor
 public class SecurityConfig {
 
@@ -59,9 +60,16 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/**").permitAll()
-                        // Dev only — drop this line (and spring.h2.console.enabled) before deploying.
+                        // Only the two endpoints that hand out a token are open. /api/auth/me and
+                        // /api/auth/logout deliberately are not: both act on an existing token.
+                        .requestMatchers("/api/auth/register", "/api/auth/login").permitAll()
+                        // Swagger UI and the OpenAPI document itself. The endpoints it calls are
+                        // still protected — the UI only describes them.
+                        .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs",
+                                "/v3/api-docs/**", "/swagger-resources/**", "/webjars/**").permitAll()
+                        // Dev only, and only reachable under the 'h2' profile — drop before deploying.
                         .requestMatchers("/h2-console/**").permitAll()
+                        .requestMatchers("/error").permitAll()
                         .anyRequest().authenticated())
                 // The H2 console renders in frames; same-origin is required for it to work.
                 .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin()))

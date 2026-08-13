@@ -1,6 +1,7 @@
 package org.example.exception;
 
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -74,6 +75,17 @@ public class GlobalExceptionHandler {
                 request.getRequestURI(),
                 fieldErrors);
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
+    }
+
+    /**
+     * A constraint the database enforces and we did not check first — most often a row
+     * that is still referenced by another table.
+     */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ApiError> handleDataIntegrity(DataIntegrityViolationException ex,
+                                                       HttpServletRequest request) {
+        return build(HttpStatus.CONFLICT,
+                "The database rejected this change — the row is probably still referenced elsewhere", request);
     }
 
     @ExceptionHandler(UnsupportedOperationException.class)
