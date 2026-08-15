@@ -15,10 +15,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
-/**
- * The optional profile attached to an account. One row per user, and only ever
- * your own: profiles hold personal details, so there is no listing of everyone's.
- */
 @Service
 @RequiredArgsConstructor
 public class UserInformationService {
@@ -52,7 +48,6 @@ public class UserInformationService {
         return toResponse(findOwnOrThrow(id));
     }
 
-    /** Your own profile, as a list of zero or one, so the endpoint shape stays uniform. */
     @Transactional(readOnly = true)
     public List<UserInformationResponse> list() {
         return userInformationRepository.findByUserId(currentUserService.requireId())

@@ -14,7 +14,6 @@ import org.example.entity.InvitationStatus;
 @AllArgsConstructor
 public class InvitationRequest {
 
-    /** Optional: the sender is always the authenticated caller. */
     @Schema(description = "Optional — the sender is the authenticated caller")
     private Long fromUserId;
 
@@ -27,6 +26,5 @@ public class InvitationRequest {
     @NotNull
     private Long additionalRoleId;
 
-    /** Optional on create (defaults to PENDING); used on update to accept/decline/revoke. */
     private InvitationStatus status;
 }

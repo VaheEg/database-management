@@ -12,11 +12,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
-/**
- * Database-scoped permissions (SELECT_ROLE, INSERT_ROLE, UPDATE_ROLE, DELETE_ROLE) —
- * the values an invitation grants. Reference data seeded at startup; read these to
- * find the {@code additionalRoleId} to put in an invitation.
- */
 @Service
 @RequiredArgsConstructor
 public class AdditionalRoleService {
@@ -58,10 +53,6 @@ public class AdditionalRoleService {
         return toResponse(additionalRoleRepository.save(additionalRole));
     }
 
-    /**
-     * Deleting a permission that invitations still reference is rejected by the
-     * foreign key and surfaces as 409 Conflict.
-     */
     @Transactional
     public void delete(Long id) {
         additionalRoleRepository.delete(findOrThrow(id));

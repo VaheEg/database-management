@@ -27,11 +27,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-/**
- * Register, log in, log out. {@code register} and {@code login} are the only
- * endpoints in the whole API reachable without a token; the rest requires the
- * token these hand out.
- */
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
@@ -41,7 +36,7 @@ public class AuthController {
     private final AuthService authService;
 
     @PostMapping("/register")
-    @SecurityRequirements  // open endpoint: no token needed
+    @SecurityRequirements
     @Operation(summary = "Create an account and receive a JWT",
             description = "Assigns the default USER role. The returned token is ready to paste into Authorize.")
     public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest request) {
@@ -49,17 +44,13 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    @SecurityRequirements  // open endpoint: no token needed
+    @SecurityRequirements
     @Operation(summary = "Exchange username and password for a JWT",
             description = "Returns 401 for both a wrong password and an unknown username.")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
         return ResponseEntity.ok(authService.login(request));
     }
 
-    /**
-     * Echoes back the caller the token resolved to — the quickest way to confirm a
-     * token is being accepted.
-     */
     @GetMapping("/me")
     @SecurityRequirement(name = "bearerAuth")
     @Operation(summary = "Who am I?", description = "Returns the id, username and roles carried by the token.")

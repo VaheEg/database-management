@@ -14,11 +14,9 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class AuditLogRequest {
 
-    /** Optional: entries are always attributed to the authenticated caller. */
     @Schema(description = "Optional — the entry is attributed to the authenticated caller")
     private Long userId;
 
-    /** Optional, and only a database you own. */
     private Long dbConnectionId;
 
     @NotBlank

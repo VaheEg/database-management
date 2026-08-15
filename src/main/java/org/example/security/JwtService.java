@@ -15,9 +15,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-/**
- * Issues and validates the access tokens used to authenticate API calls.
- */
 @Service
 public class JwtService {
 
@@ -25,10 +22,8 @@ public class JwtService {
 
     private static final String BEARER_PREFIX = "Bearer ";
 
-    /** Roles are carried in the token so the filter can build authorities without a DB hit. */
     static final String CLAIM_ROLES = "roles";
 
-    /** The user's id, so the caller can be resolved without a lookup by username. */
     static final String CLAIM_USER_ID = "uid";
 
     private final JwtProperties properties;
@@ -44,17 +39,9 @@ public class JwtService {
         this.signingKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
     }
 
-    /**
-     * A freshly minted token together with the two timestamps the caller needs:
-     * {@code expiresAt} for the response body, {@code id} for revoking it on logout.
-     */
     public record IssuedToken(String token, String id, Instant issuedAt, Instant expiresAt) {
     }
 
-    /**
-     * Issues a token whose subject is the username and which carries the user's id,
-     * roles, and a unique {@code jti} so a single token can later be revoked.
-     */
     public IssuedToken issue(Long userId, String username, List<String> roles) {
         Instant issuedAt = Instant.now();
         Instant expiresAt = issuedAt.plus(properties.getExpiration());
@@ -76,11 +63,6 @@ public class JwtService {
         return properties.getExpiration();
     }
 
-    /**
-     * Parses and verifies a token.
-     *
-     * @return the claims, or empty if the token is malformed, expired, or not signed by us
-     */
     public Optional<Claims> parse(String token) {
         try {
             return Optional.of(Jwts.parser()
@@ -102,15 +84,10 @@ public class JwtService {
         return parse(token).map(Claims::getSubject);
     }
 
-    /** When the given token stops being accepted, whether or not it was revoked earlier. */
     public static Optional<Instant> expiresAt(Claims claims) {
         return Optional.ofNullable(claims.getExpiration()).map(Date::toInstant);
     }
 
-    /**
-     * Pulls the token out of an {@code Authorization: Bearer <token>} header value.
-     * Shared by the filter and the logout endpoint so both read headers the same way.
-     */
     public static Optional<String> stripBearer(String authorizationHeader) {
         if (authorizationHeader == null || !authorizationHeader.startsWith(BEARER_PREFIX)) {
             return Optional.empty();

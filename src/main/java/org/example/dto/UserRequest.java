@@ -23,7 +23,6 @@ public class UserRequest {
     @Size(max = 255)
     private String email;
 
-    /** Raw password, hashed by the service. Request-only — never returned. */
     @NotBlank
     @Size(min = 8, max = 100)
     private String password;

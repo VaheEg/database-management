@@ -40,7 +40,6 @@ public class AuditLog {
     @Column(nullable = false, length = 255)
     private String action;
 
-    /** Free-form context for the action, e.g. the statement that was run. */
     @Column(length = 2000)
     private String detail;
 

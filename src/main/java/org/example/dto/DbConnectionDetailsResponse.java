@@ -8,7 +8,6 @@ import org.example.entity.DbType;
 
 import java.time.Instant;
 
-/** Deliberately omits {@code dbPassword}. */
 @Data
 @Builder
 @NoArgsConstructor

@@ -13,11 +13,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     Optional<User> findByUsername(String username);
 
-    /**
-     * Loads a user together with their application roles. Used at authentication
-     * time, where {@code spring.jpa.open-in-view=false} means lazy roles would
-     * otherwise fail once the transaction closes.
-     */
     @Query("""
             select distinct u from User u
             left join fetch u.userRoles ur

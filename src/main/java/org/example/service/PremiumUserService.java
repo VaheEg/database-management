@@ -36,7 +36,6 @@ public class PremiumUserService {
     private final EmailVerificationService emailVerificationService;
     private final AuditLogService auditLogService;
 
-
     @Transactional(noRollbackFor = BadRequestException.class)
     public MessageResponse requestCode(PremiumUserRequest request) {
         Long userId = currentUserService.requireId();
@@ -86,7 +85,6 @@ public class PremiumUserService {
         return toResponse(findOwnOrThrow(id));
     }
 
-    /** Your own premium link, as a list of zero or one. */
     @Transactional(readOnly = true)
     public List<PremiumUserResponse> list() {
         return premiumUserRepository.findByUserId(currentUserService.requireId())
@@ -95,7 +93,6 @@ public class PremiumUserService {
                 .orElseGet(List::of);
     }
 
-    /** Disconnects the email, which drops the account back to a normal user. */
     @Transactional
     public void delete(Long id) {
         PremiumUser premiumUser = findOwnOrThrow(id);
@@ -113,7 +110,6 @@ public class PremiumUserService {
         return premiumUser;
     }
 
-    /** One address, one account — checked before a code is sent and again before it is honoured. */
     private void rejectIfConnectedElsewhere(String email, Long userId) {
         premiumUserRepository.findByConnectedEmail(email).ifPresent(existing -> {
             if (!existing.getUser().getId().equals(userId)) {

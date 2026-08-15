@@ -15,7 +15,6 @@ import java.time.LocalDate;
 @AllArgsConstructor
 public class UserInformationRequest {
 
-    /** Optional: the profile always belongs to the authenticated caller. */
     @Schema(description = "Optional — the profile belongs to the authenticated caller")
     private Long userId;
 

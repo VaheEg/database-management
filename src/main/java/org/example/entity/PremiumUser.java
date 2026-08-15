@@ -17,9 +17,6 @@ import lombok.Setter;
 
 import java.time.Instant;
 
-/**
- * Links a {@link User} to the connected email that grants them premium status.
- */
 @Entity
 @Table(name = "premium_users")
 @Getter

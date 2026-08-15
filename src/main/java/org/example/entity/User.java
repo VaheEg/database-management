@@ -41,7 +41,6 @@ public class User {
     @Column(name = "password_hash", nullable = false)
     private String passwordHash;
 
-    /** Disabled accounts keep their data but cannot authenticate. */
     @Column(nullable = false)
     private boolean enabled = true;
 
@@ -54,11 +53,9 @@ public class User {
     @OneToOne(mappedBy = "user", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
     private PremiumUser premiumUser;
 
-    /** Application-level roles, joined through the {@link UserRole} entity. */
     @OneToMany(mappedBy = "user", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<UserRole> userRoles = new HashSet<>();
 
-    /** External databases this user owns. */
     @OneToMany(mappedBy = "ownerUser", fetch = FetchType.LAZY)
     private Set<DbConnectionDetails> dbConnections = new HashSet<>();
 

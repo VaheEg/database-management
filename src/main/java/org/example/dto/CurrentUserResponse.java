@@ -7,7 +7,6 @@ import lombok.NoArgsConstructor;
 
 import java.util.List;
 
-/** Who the presented token resolves to. Returned by {@code GET /api/auth/me}. */
 @Data
 @Builder
 @NoArgsConstructor

@@ -18,14 +18,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
-/**
- * The audit trail: who did what, against which database, whether it worked, and when.
- *
- * <p>Entries are append-only. There is deliberately no update or delete — a log you
- * can edit is not evidence of anything — so the controller exposes only create and
- * read. Other services call {@link #record} rather than the DTO-facing
- * {@link #create}.
- */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -36,20 +28,6 @@ public class AuditLogService {
     private final DbConnectionDetailsRepository dbConnectionDetailsRepository;
     private final CurrentUserService currentUserService;
 
-    /**
-     * Writes an entry from inside another operation.
-     *
-     * <p>Joins the caller's transaction rather than opening its own. That is deliberate:
-     * an entry usually points at the very row the caller just inserted, and a separate
-     * transaction could not see that uncommitted row — the foreign key check would block
-     * on it while the caller waits for the audit write, which is a deadlock. The cost is
-     * that an entry rolls back with the operation it describes, so this records actions
-     * that succeeded. Recording a failed attempt means calling it from a fresh
-     * transaction after the rollback, with {@code dbConnectionId} pointing only at rows
-     * that are already committed.
-     *
-     * @param dbConnectionId the database involved, or {@code null} for account-level actions
-     */
     @Transactional
     public void record(Long userId, Long dbConnectionId, String action, String detail, boolean success) {
         AuditLog entry = new AuditLog();
@@ -63,11 +41,6 @@ public class AuditLogService {
         auditLogRepository.save(entry);
     }
 
-    /**
-     * Unlinks past entries from a database that is about to be un-registered, so the
-     * history survives the deletion instead of being cascaded away with it. The entries
-     * keep their action and detail — including which host and database they were about.
-     */
     @Transactional
     public void detachConnection(Long dbConnectionId) {
         List<AuditLog> entries = auditLogRepository.findByDbConnectionId(dbConnectionId);
@@ -76,7 +49,6 @@ public class AuditLogService {
         log.debug("Detached {} audit entr(ies) from connection {}", entries.size(), dbConnectionId);
     }
 
-    /** Records an action the caller performed by hand through the API. */
     @Transactional
     public AuditLogResponse create(AuditLogRequest request) {
         Long userId = currentUserService.requireId();
@@ -114,7 +86,6 @@ public class AuditLogService {
         return toResponse(entry);
     }
 
-    /** Everything the caller did, newest first. */
     @Transactional(readOnly = true)
     public List<AuditLogResponse> list() {
         return auditLogRepository.findByUserIdOrderByPerformedAtDesc(currentUserService.requireId())
@@ -123,7 +94,6 @@ public class AuditLogService {
                 .toList();
     }
 
-    /** The trail for one database. Owners only — it shows what collaborators did. */
     @Transactional(readOnly = true)
     public List<AuditLogResponse> listForConnection(Long dbConnectionId) {
         Long callerId = currentUserService.requireId();
@@ -141,7 +111,6 @@ public class AuditLogService {
                         "Database connection " + dbConnectionId + " is not yours"));
     }
 
-    /** The column holds 2000 characters; a long statement should not fail the write. */
     private static String truncate(String detail) {
         if (detail == null || detail.length() <= 2000) {
             return detail;

@@ -13,17 +13,6 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.Base64;
 
-/**
- * Symmetric encryption for the one secret this application stores on a user's
- * behalf: the password of an external database.
- *
- * <p>Those passwords cannot be hashed like a login password — the backend has to
- * present the original value to the other database — so they are encrypted with
- * AES-GCM instead. GCM is authenticated, so a tampered-with ciphertext fails to
- * decrypt rather than yielding garbage. Each value gets a fresh random IV, which
- * is prepended to the ciphertext and stored with it; the whole thing is Base64 so
- * it fits in an ordinary varchar column.
- */
 @Service
 public class CryptoService {
 
@@ -44,7 +33,6 @@ public class CryptoService {
         this.key = deriveKey(secret);
     }
 
-    /** @return Base64 of {@code iv || ciphertext}, safe to persist */
     public String encrypt(String plaintext) {
         if (plaintext == null) {
             return null;
@@ -66,12 +54,6 @@ public class CryptoService {
         }
     }
 
-    /**
-     * Reverses {@link #encrypt(String)}.
-     *
-     * @throws IllegalStateException if the value was not produced by this service, or
-     *                               was encrypted under a different {@code app.crypto.secret}
-     */
     public String decrypt(String encrypted) {
         if (encrypted == null) {
             return null;
@@ -93,7 +75,6 @@ public class CryptoService {
         }
     }
 
-    /** SHA-256 turns a human-typed secret of any length into the 256 bits AES wants. */
     private static SecretKey deriveKey(String secret) {
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256")

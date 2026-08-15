@@ -58,8 +58,6 @@ class InvitationPremiumGateIntegrationTest {
 
         upgradeToPremium(ownerToken, "invite.owner.connected@example.com");
 
-        // Deliberately the same token as the refused call: the gate reads PREMIUM_USERS,
-        // so the upgrade must take effect without a fresh login.
         mockMvc.perform(post("/api/invitations")
                         .header("Authorization", "Bearer " + ownerToken)
                         .contentType(MediaType.APPLICATION_JSON)

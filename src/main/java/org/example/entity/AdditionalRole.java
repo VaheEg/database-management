@@ -13,9 +13,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-/**
- * A database-scoped permission that can be granted through an {@link Invitation}.
- */
 @Entity
 @Table(name = "additional_roles")
 @Getter

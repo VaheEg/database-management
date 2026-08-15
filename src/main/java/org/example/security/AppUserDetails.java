@@ -10,14 +10,6 @@ import org.springframework.security.core.userdetails.UserDetails;
 import java.util.Collection;
 import java.util.List;
 
-/**
- * Adapts a {@link User} to Spring Security. Carries the user's id so downstream
- * services can resolve the caller without another lookup by username.
- *
- * <p>Only application {@code ROLES} become authorities here. Database-scoped
- * permissions ({@code ADDITIONAL_ROLES}) are deliberately not authorities: they
- * apply to one {@code DbConnectionDetails} at a time and are checked per request.
- */
 @Getter
 public class AppUserDetails implements UserDetails {
 
@@ -36,7 +28,6 @@ public class AppUserDetails implements UserDetails {
         this.authorities = List.copyOf(authorities);
     }
 
-    /** Requires {@code userRoles} (and their roles) to already be loaded. */
     public static AppUserDetails from(User user) {
         List<GrantedAuthority> authorities = user.getUserRoles().stream()
                 .map(UserRole::getRole)

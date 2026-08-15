@@ -28,10 +28,6 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 
-/**
- * Registration, login, and logout. Everything else in the API assumes a token
- * issued here.
- */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -46,10 +42,6 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
     private final RevokedTokenStore revokedTokenStore;
 
-    /**
-     * Creates an account with the default {@link RoleName#USER} role and returns a
-     * token, so a client can register and start calling the API in one round trip.
-     */
     @Transactional
     public AuthResponse register(RegisterRequest request) {
         String username = request.getUsername().trim();
@@ -75,7 +67,6 @@ public class AuthService {
         UserRole assignment = new UserRole();
         assignment.setUser(user);
         assignment.setRole(defaultRole);
-        // Cascades from User, so one save persists the account and its role.
         user.getUserRoles().add(assignment);
 
         User saved = userRepository.save(user);
@@ -84,10 +75,6 @@ public class AuthService {
         return issueToken(saved.getId(), saved.getUsername(), roles);
     }
 
-    /**
-     * Verifies the credentials through the {@link AuthenticationManager} — which runs
-     * BCrypt matching and the enabled check — then issues a token.
-     */
     @Transactional(readOnly = true)
     public AuthResponse login(LoginRequest request) {
         Authentication authentication = authenticationManager.authenticate(
@@ -103,15 +90,6 @@ public class AuthService {
         return issueToken(principal.getId(), principal.getUsername(), roles);
     }
 
-    /**
-     * Revokes the token the caller presented, so it stops working immediately instead
-     * of remaining valid until it expires.
-     *
-     * <p>Only this one token is affected: another device that logged in separately
-     * holds a different token and stays signed in.
-     *
-     * @param authorizationHeader the request's {@code Authorization} header
-     */
     public void logout(String authorizationHeader) {
         String token = JwtService.stripBearer(authorizationHeader)
                 .orElseThrow(() -> new BadRequestException(

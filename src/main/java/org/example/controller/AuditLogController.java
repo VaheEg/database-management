@@ -18,10 +18,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-/**
- * Read the audit trail, and add an entry by hand if a client wants to record
- * something itself. There is no update or delete: the log is append-only.
- */
 @RestController
 @RequestMapping("/api/audit-logs")
 @RequiredArgsConstructor

@@ -18,11 +18,6 @@ import lombok.Setter;
 
 import java.time.Instant;
 
-/**
- * Join entity for the many-to-many between {@link User} and {@link Role}.
- * Modelled as an entity (rather than a plain {@code @ManyToMany} join table)
- * so the association can carry its own columns, e.g. {@code assignedAt}.
- */
 @Entity
 @Table(
         name = "user_roles",

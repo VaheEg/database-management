@@ -19,10 +19,6 @@ import lombok.Setter;
 
 import java.time.Instant;
 
-/**
- * An owner inviting another user to one of their databases with a single
- * database-scoped permission.
- */
 @Entity
 @Table(name = "invitations")
 @Getter

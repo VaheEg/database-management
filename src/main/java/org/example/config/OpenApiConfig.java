@@ -13,16 +13,6 @@ import org.springframework.context.annotation.Configuration;
 
 import java.util.List;
 
-/**
- * Describes the API for Swagger UI, served at {@code /swagger-ui.html}.
- *
- * <p>The important part is the {@code bearerAuth} scheme: it puts an
- * <b>Authorize</b> button in the UI, and because it is also declared as a
- * top-level requirement, every operation sends the token you paste there as
- * {@code Authorization: Bearer <token>}. Register or log in first, copy the
- * {@code token} out of the response, and paste it — the raw token, without the
- * word "Bearer", which Swagger adds itself.
- */
 @Configuration
 public class OpenApiConfig {
 
@@ -58,7 +48,6 @@ public class OpenApiConfig {
                         .scheme("bearer")
                         .bearerFormat("JWT")
                         .description("Paste the raw JWT from /api/auth/login — Swagger prefixes 'Bearer ' for you.")))
-                // Applies to every operation; register and login also work without it.
                 .addSecurityItem(new SecurityRequirement().addList(BEARER_SCHEME));
     }
 }

@@ -53,7 +53,6 @@ public class EmailVerificationService {
         return verification.getExpiresAt();
     }
 
-
     @Transactional(noRollbackFor = BadRequestException.class)
     public void consume(Long userId, String email, String code) {
         EmailVerification verification = emailVerificationRepository

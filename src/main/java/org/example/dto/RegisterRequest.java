@@ -26,7 +26,6 @@ public class RegisterRequest {
     @Size(max = 255)
     private String email;
 
-    /** Raw password. Hashed on the way in and never stored or returned in the clear. */
     @NotBlank
     @Size(min = 8, max = 100)
     private String password;

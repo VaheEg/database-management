@@ -25,21 +25,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
-/**
- * Sharing: an owner invites another user to one of their databases with exactly one
- * database-scoped permission.
- *
- * <p>Who may do what is the whole point of this class:
- * <ul>
- *   <li>only a <b>premium</b> user may send an invitation at all;</li>
- *   <li>only the <b>owner of that database</b> may send an invitation for it;</li>
- *   <li>only the <b>recipient</b> may accept or decline it;</li>
- *   <li>only the <b>sender</b> may revoke or delete it.</li>
- * </ul>
- *
- * <p>A grant is tied to one {@code dbConnectionId}, so UPDATE_ROLE on database A says
- * nothing about the same owner's database B.
- */
 @Service
 @RequiredArgsConstructor
 public class InvitationService {
@@ -87,8 +72,6 @@ public class InvitationService {
         invitation.setToUser(recipient);
         invitation.setDbConnection(connection);
         invitation.setAdditionalRole(permission);
-        // Always starts pending: a status in the request would let a sender grant
-        // themselves an accepted invitation on somebody else's behalf.
         invitation.setStatus(InvitationStatus.PENDING);
 
         Invitation saved = invitationRepository.save(invitation);
@@ -108,7 +91,6 @@ public class InvitationService {
         return toResponse(invitation);
     }
 
-    /** Everything the caller sent or received, newest first. */
     @Transactional(readOnly = true)
     public List<InvitationResponse> list() {
         Long callerId = currentUserService.requireId();
@@ -123,10 +105,6 @@ public class InvitationService {
                 .toList();
     }
 
-    /**
-     * Responds to an invitation. The only meaningful field in the request is
-     * {@code status}: ACCEPTED or DECLINED from the recipient, REVOKED from the sender.
-     */
     @Transactional
     public InvitationResponse update(Long id, InvitationRequest request) {
         Invitation invitation = invitationRepository.findById(id)
@@ -171,7 +149,6 @@ public class InvitationService {
         return toResponse(saved);
     }
 
-    /** Withdraws an invitation entirely. Sender only; revoking is usually the better record. */
     @Transactional
     public void delete(Long id) {
         Invitation invitation = invitationRepository.findById(id)
@@ -186,11 +163,6 @@ public class InvitationService {
         invitationRepository.delete(invitation);
     }
 
-    /**
-     * The authorization question the rest of the application asks: may this user do
-     * this to this one database? The owner may do anything to their own; everyone else
-     * needs an accepted invitation carrying that permission <em>for that database</em>.
-     */
     @Transactional(readOnly = true)
     public boolean hasPermission(Long userId, Long dbConnectionId, AdditionalRoleName permission) {
         if (dbConnectionDetailsRepository.findByIdAndOwnerUserId(dbConnectionId, userId).isPresent()) {

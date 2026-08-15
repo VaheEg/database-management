@@ -19,9 +19,6 @@ import lombok.Setter;
 
 import java.time.Instant;
 
-/**
- * Connection details for an external database registered by its owner.
- */
 @Entity
 @Table(name = "db_connection_details")
 @Getter
@@ -50,7 +47,6 @@ public class DbConnectionDetails {
     @Column(name = "db_username", nullable = false, length = 255)
     private String dbUsername;
 
-    /** Never exposed through a response DTO. */
     @Column(name = "db_password", nullable = false)
     private String dbPassword;
 

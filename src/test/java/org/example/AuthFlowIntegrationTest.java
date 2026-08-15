@@ -17,12 +17,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/**
- * The whole point of the security layer, end to end: an account is created, its token
- * opens protected endpoints, logging out closes them again, and logging in reopens them.
- *
- * <p>Runs against the in-memory {@code h2} profile, so no PostgreSQL is needed to build.
- */
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("h2")
@@ -52,7 +46,6 @@ class AuthFlowIntegrationTest {
     void registerThenUseThenLogoutThenLoginAgain() throws Exception {
         String token = register("flow.user", "flow.user@example.com", "password123");
 
-        // The token opens a protected endpoint.
         mockMvc.perform(get("/api/auth/me").header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.username").value("flow.user"))
@@ -61,7 +54,6 @@ class AuthFlowIntegrationTest {
         mockMvc.perform(post("/api/auth/logout").header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk());
 
-        // Same token, same signature — refused now only because it was logged out.
         mockMvc.perform(get("/api/auth/me").header("Authorization", "Bearer " + token))
                 .andExpect(status().isUnauthorized());
 

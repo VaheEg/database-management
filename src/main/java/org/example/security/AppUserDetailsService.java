@@ -17,7 +17,6 @@ public class AppUserDetailsService implements UserDetailsService {
     @Override
     @Transactional(readOnly = true)
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        // Fetch-joins the roles: open-in-view is off, so they must be loaded here.
         return userRepository.findByUsernameWithRoles(username)
                 .map(AppUserDetails::from)
                 .orElseThrow(() -> new UsernameNotFoundException("No user with username " + username));

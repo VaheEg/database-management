@@ -19,11 +19,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Locale;
 
-/**
- * Accounts. Reads are open to any authenticated caller — usernames and ids have to
- * be discoverable for one user to invite another — but writes are restricted to the
- * caller's own account, since the application has no administrator role.
- */
 @Service
 @RequiredArgsConstructor
 public class UserService {
@@ -33,10 +28,6 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final CurrentUserService currentUserService;
 
-    /**
-     * Creates an account. Equivalent to {@code POST /api/auth/register} except that it
-     * requires a token and hands back the user rather than a new one.
-     */
     @Transactional
     public UserResponse create(UserRequest request) {
         String username = request.getUsername().trim();
@@ -77,7 +68,6 @@ public class UserService {
         return userRepository.findAll().stream().map(UserService::toResponse).toList();
     }
 
-    /** Only your own account, and only the fields you actually sent. */
     @Transactional
     public UserResponse update(Long id, UserRequest request) {
         currentUserService.requireSelf(id, "update your own account");
@@ -103,15 +93,6 @@ public class UserService {
         return toResponse(userRepository.save(user));
     }
 
-    /**
-     * Deactivates your own account — a soft delete: {@code enabled} goes to false, so
-     * logging in stops working, while the audit trail, the databases you registered and
-     * the invitations you sent stay intact and still make sense. Hard-deleting a user an
-     * audit log points at would either destroy that history or leave it dangling.
-     *
-     * <p>One caveat of stateless tokens: a token issued before deactivation keeps working
-     * until it expires or its holder calls {@code /api/auth/logout}.
-     */
     @Transactional
     public void delete(Long id) {
         currentUserService.requireSelf(id, "deactivate your own account");

@@ -13,7 +13,6 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
 
     List<AuditLog> findByDbConnectionId(Long dbConnectionId);
 
-    /** Audit trails are read newest-first. */
     List<AuditLog> findByUserIdOrderByPerformedAtDesc(Long userId);
 
     List<AuditLog> findByDbConnectionIdOrderByPerformedAtDesc(Long dbConnectionId);

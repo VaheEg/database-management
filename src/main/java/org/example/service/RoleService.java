@@ -12,11 +12,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
-/**
- * Application-level roles (USER, PREMIUM). Reference data: {@code DataSeeder} creates
- * one row per {@link org.example.entity.RoleName} at startup, so these endpoints exist
- * mostly to read them and to adjust descriptions.
- */
 @Service
 @RequiredArgsConstructor
 public class RoleService {
@@ -55,7 +50,6 @@ public class RoleService {
         return toResponse(roleRepository.save(role));
     }
 
-    /** Refuses to delete a role that is still assigned, which would orphan those users. */
     @Transactional
     public void delete(Long id) {
         Role role = findOrThrow(id);

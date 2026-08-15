@@ -16,10 +16,6 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/**
- * Turns exceptions into the {@link ApiError} shape so clients never see a stack
- * trace or an inconsistent error body.
- */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
@@ -44,11 +40,6 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.FORBIDDEN, "Access is denied", request);
     }
 
-    /**
-     * Login failures are deliberately indistinguishable: a wrong password and an
-     * unknown username produce the same message, so the endpoint cannot be used to
-     * enumerate accounts.
-     */
     @ExceptionHandler({BadCredentialsException.class, UsernameNotFoundException.class})
     public ResponseEntity<ApiError> handleBadCredentials(RuntimeException ex, HttpServletRequest request) {
         return build(HttpStatus.UNAUTHORIZED, "Invalid username or password", request);
@@ -59,7 +50,6 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.FORBIDDEN, "This account is disabled", request);
     }
 
-    /** Field-level failures from {@code @Valid} request bodies. */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiError> handleValidation(MethodArgumentNotValidException ex,
                                                      HttpServletRequest request) {
@@ -77,10 +67,6 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
     }
 
-    /**
-     * A constraint the database enforces and we did not check first — most often a row
-     * that is still referenced by another table.
-     */
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ApiError> handleDataIntegrity(DataIntegrityViolationException ex,
                                                        HttpServletRequest request) {

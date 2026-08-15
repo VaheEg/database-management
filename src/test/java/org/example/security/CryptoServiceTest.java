@@ -5,9 +5,6 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/**
- * The guarantees the stored external-database passwords rely on.
- */
 class CryptoServiceTest {
 
     private static final String SECRET = "unit-test-crypto-secret-at-least-32-chars";
@@ -24,7 +21,6 @@ class CryptoServiceTest {
         assertThat(cryptoService.decrypt(encrypted)).isEqualTo(plaintext);
     }
 
-    /** A fresh IV per value: the same password must not produce the same ciphertext twice. */
     @Test
     void encryptingTheSameValueTwiceGivesDifferentCiphertext() {
         String first = cryptoService.encrypt("same-password");

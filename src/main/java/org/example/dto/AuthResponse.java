@@ -8,10 +8,6 @@ import lombok.NoArgsConstructor;
 import java.time.Instant;
 import java.util.List;
 
-/**
- * What a successful register or login returns. Send the token back as
- * {@code Authorization: Bearer <token>} on every subsequent call.
- */
 @Data
 @Builder
 @NoArgsConstructor

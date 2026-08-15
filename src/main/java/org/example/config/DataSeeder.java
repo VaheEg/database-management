@@ -15,11 +15,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.EnumMap;
 import java.util.Map;
 
-/**
- * Makes sure the reference rows every other feature depends on exist before the
- * first request. Idempotent: rows are only inserted when missing, so restarts and
- * a persistent database are both safe.
- */
 @Component
 @RequiredArgsConstructor
 @Slf4j

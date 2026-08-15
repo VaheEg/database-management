@@ -20,14 +20,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
 
-/**
- * Reads a {@code Bearer} token off the request and, if it verifies and has not been
- * logged out, populates the security context for the rest of the chain.
- *
- * <p>A missing or invalid token is not an error here — the request simply stays
- * anonymous and the authorization rules decide what happens next. That keeps
- * {@code /api/auth/register} and {@code /api/auth/login} usable without a token.
- */
 @Component
 @RequiredArgsConstructor
 public class JwtAuthFilter extends OncePerRequestFilter {
@@ -52,7 +44,6 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         }
 
         jwtService.parse(token.get())
-                // A logged-out token verifies perfectly well; it is the store that rejects it.
                 .filter(claims -> !revokedTokenStore.isRevoked(claims.getId()))
                 .ifPresent(claims -> authenticate(claims, request));
         filterChain.doFilter(request, response);
@@ -64,8 +55,6 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         if (username == null || username.isBlank() || userId == null) {
             return;
         }
-        // The principal is an AppUserDetails rebuilt from the token — no password,
-        // since nothing downstream re-checks credentials on an already-signed token.
         var principal = new AppUserDetails(userId, username, null, true, authorities(claims));
         var authentication = UsernamePasswordAuthenticationToken.authenticated(
                 principal, null, principal.getAuthorities());

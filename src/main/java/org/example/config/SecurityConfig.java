@@ -41,10 +41,6 @@ public class SecurityConfig {
         return new BCryptPasswordEncoder();
     }
 
-    /**
-     * Built explicitly rather than pulled from the auto-configuration so it is
-     * obvious which {@link UserDetailsService} and encoder back authentication.
-     */
     @Bean
     public AuthenticationManager authenticationManager(UserDetailsService userDetailsService,
                                                        PasswordEncoder passwordEncoder) {
@@ -56,39 +52,29 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         return http
-                // No cookies or sessions are used, so there is no CSRF surface to protect.
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        // Only the two endpoints that hand out a token are open. /api/auth/me and
-                        // /api/auth/logout deliberately are not: both act on an existing token.
                         .requestMatchers("/api/auth/register", "/api/auth/login").permitAll()
-                        // Swagger UI and the OpenAPI document itself. The endpoints it calls are
-                        // still protected — the UI only describes them.
                         .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs",
                                 "/v3/api-docs/**", "/swagger-resources/**", "/webjars/**").permitAll()
-                        // Dev only, and only reachable under the 'h2' profile — drop before deploying.
                         .requestMatchers("/h2-console/**").permitAll()
                         .requestMatchers("/error").permitAll()
                         .anyRequest().authenticated())
-                // The H2 console renders in frames; same-origin is required for it to work.
                 .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin()))
                 .exceptionHandling(handling -> handling
                         .authenticationEntryPoint(authenticationEntryPoint())
                         .accessDeniedHandler(accessDeniedHandler()))
-                // Runs before the username/password filter so a valid token short-circuits it.
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
     }
 
-    /** Unauthenticated request to a protected route → 401 in the standard error shape. */
     private AuthenticationEntryPoint authenticationEntryPoint() {
         return (request, response, authException) ->
                 writeError(request, response, HttpStatus.UNAUTHORIZED,
                         "Authentication is required to access this resource");
     }
 
-    /** Authenticated but not permitted → 403 in the standard error shape. */
     private AccessDeniedHandler accessDeniedHandler() {
         return (request, response, accessDeniedException) ->
                 writeError(request, response, HttpStatus.FORBIDDEN, "Access is denied");

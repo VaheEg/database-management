@@ -20,17 +20,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * The external databases users register — the heart of the application.
- *
- * <p>Two rules run through all of it. The owner is always the caller: a client cannot
- * register a database in somebody else's name, whatever it puts in {@code ownerUserId}.
- * And the database password is encrypted with {@link CryptoService} on the way in and
- * never returned — {@link DbConnectionDetailsResponse} has no field for it.
- *
- * <p>Reads are visible to the owner and to anyone holding an accepted invitation for
- * that one database; writes are the owner's alone.
- */
 @Service
 @RequiredArgsConstructor
 public class DbConnectionDetailsService {
@@ -74,7 +63,6 @@ public class DbConnectionDetailsService {
         return toResponse(findVisibleOrThrow(id));
     }
 
-    /** Databases the caller owns, followed by the ones shared with them. */
     @Transactional(readOnly = true)
     public List<DbConnectionDetailsResponse> list() {
         Long callerId = currentUserService.requireId();
@@ -89,7 +77,6 @@ public class DbConnectionDetailsService {
         return visible.stream().map(DbConnectionDetailsService::toResponse).toList();
     }
 
-    /** Owner only. A blank or absent {@code dbPassword} leaves the stored one alone. */
     @Transactional
     public DbConnectionDetailsResponse update(Long id, DbConnectionDetailsRequest request) {
         DbConnectionDetails connection = findOwnedOrThrow(id);
@@ -109,27 +96,16 @@ public class DbConnectionDetailsService {
         return toResponse(saved);
     }
 
-    /**
-     * Owner only. Invitations and audit entries referencing this database go with it,
-     * so the connection can be un-registered without leaving dangling grants.
-     */
     @Transactional
     public void delete(Long id) {
         DbConnectionDetails connection = findOwnedOrThrow(id);
         Long callerId = currentUserService.requireId();
-        // Order matters: the grants and the audit trail both point at this row, so they
-        // are cleared and unlinked before it goes. The final entry carries no link —
-        // there would be nothing left to link to — but keeps the detail.
         invitationRepository.deleteAll(invitationRepository.findByDbConnectionId(id));
         auditLogService.detachConnection(id);
         auditLogService.record(callerId, null, "DB_CONNECTION_DELETED", describe(connection), true);
         dbConnectionDetailsRepository.delete(connection);
     }
 
-    /**
-     * The stored password, decrypted. Nothing exposes this over HTTP — it exists for
-     * the query-execution step, which opens a JDBC connection with these credentials.
-     */
     @Transactional(readOnly = true)
     public String decryptedPassword(Long id) {
         return cryptoService.decrypt(findOwnedOrThrow(id).getDbPassword());
