@@ -3,6 +3,7 @@ package org.example.service;
 import lombok.RequiredArgsConstructor;
 import org.example.dto.InvitationRequest;
 import org.example.dto.InvitationResponse;
+import org.example.dto.InvitationStatusRequest;
 import org.example.entity.AdditionalRole;
 import org.example.entity.AdditionalRoleName;
 import org.example.entity.DbConnectionDetails;
@@ -48,10 +49,6 @@ public class InvitationService {
                     "Sharing a database is a premium feature — connect and verify an email "
                             + "address via /api/premium-users/request-code first");
         }
-        if (request.getToUserId().equals(senderId)) {
-            throw new BadRequestException("You already own this database — there is nothing to grant yourself");
-        }
-
         DbConnectionDetails connection = dbConnectionDetailsRepository
                 .findByIdAndOwnerUserId(request.getDbConnectionId(), senderId)
                 .orElseThrow(() -> dbConnectionDetailsRepository.existsById(request.getDbConnectionId())
@@ -60,8 +57,10 @@ public class InvitationService {
 
         User sender = userRepository.findById(senderId)
                 .orElseThrow(() -> NotFoundException.of("User", senderId));
-        User recipient = userRepository.findById(request.getToUserId())
-                .orElseThrow(() -> NotFoundException.of("User", request.getToUserId()));
+        User recipient = findRecipient(request);
+        if (recipient.getId().equals(senderId)) {
+            throw new BadRequestException("You already own this database — there is nothing to grant yourself");
+        }
         AdditionalRole permission = additionalRoleRepository.findById(request.getAdditionalRoleId())
                 .orElseThrow(() -> NotFoundException.of("Permission", request.getAdditionalRoleId()));
 
@@ -106,16 +105,12 @@ public class InvitationService {
     }
 
     @Transactional
-    public InvitationResponse update(Long id, InvitationRequest request) {
+    public InvitationResponse update(Long id, InvitationStatusRequest request) {
         Invitation invitation = invitationRepository.findById(id)
                 .orElseThrow(() -> NotFoundException.of("Invitation", id));
         Long callerId = currentUserService.requireId();
         InvitationStatus target = request.getStatus();
 
-        if (target == null) {
-            throw new BadRequestException(
-                    "Set 'status' to ACCEPTED, DECLINED (recipient) or REVOKED (sender)");
-        }
         if (target == InvitationStatus.PENDING) {
             throw new BadRequestException("An invitation cannot be moved back to PENDING");
         }
@@ -180,6 +175,23 @@ public class InvitationService {
         }
     }
 
+    /** The recipient named by username or by id. Either will do; both must agree when both are sent. */
+    private User findRecipient(InvitationRequest request) {
+        String username = request.getToUsername() == null ? "" : request.getToUsername().trim();
+        if (username.isEmpty() && request.getToUserId() == null) {
+            throw new BadRequestException("Name the recipient with toUsername or toUserId");
+        }
+        User recipient = username.isEmpty()
+                ? userRepository.findById(request.getToUserId())
+                        .orElseThrow(() -> NotFoundException.of("User", request.getToUserId()))
+                : userRepository.findByUsername(username)
+                        .orElseThrow(() -> new NotFoundException("There is no user called '" + username + "'"));
+        if (request.getToUserId() != null && !request.getToUserId().equals(recipient.getId())) {
+            throw new BadRequestException("toUsername and toUserId name two different users");
+        }
+        return recipient;
+    }
+
     private void rejectDuplicate(Long recipientId, Long connectionId, AdditionalRole permission) {
         for (InvitationStatus status : List.of(InvitationStatus.PENDING, InvitationStatus.ACCEPTED)) {
             invitationRepository.findByToUserIdAndDbConnectionIdAndAdditionalRoleNameAndStatus(
@@ -199,9 +211,14 @@ public class InvitationService {
         return InvitationResponse.builder()
                 .id(invitation.getId())
                 .fromUserId(invitation.getFromUser().getId())
+                .fromUsername(invitation.getFromUser().getUsername())
                 .toUserId(invitation.getToUser().getId())
+                .toUsername(invitation.getToUser().getUsername())
                 .dbConnectionId(invitation.getDbConnection().getId())
+                .dbName(invitation.getDbConnection().getDbName())
+                .dbType(invitation.getDbConnection().getDbType())
                 .additionalRoleId(invitation.getAdditionalRole().getId())
+                .permission(invitation.getAdditionalRole().getName())
                 .status(invitation.getStatus())
                 .createdAt(invitation.getCreatedAt())
                 .build();

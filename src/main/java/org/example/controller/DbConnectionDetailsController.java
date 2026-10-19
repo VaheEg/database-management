@@ -6,7 +6,9 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.example.dto.DbConnectionDetailsRequest;
 import org.example.dto.DbConnectionDetailsResponse;
+import org.example.dto.MessageResponse;
 import org.example.service.DbConnectionDetailsService;
+import org.example.service.QueryExecutionService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -27,6 +29,7 @@ import java.util.List;
 public class DbConnectionDetailsController {
 
     private final DbConnectionDetailsService dbConnectionDetailsService;
+    private final QueryExecutionService queryExecutionService;
 
     @PostMapping
     @Operation(summary = "Register one of your external databases",
@@ -34,6 +37,25 @@ public class DbConnectionDetailsController {
                     + "and never appears in a response.")
     public ResponseEntity<DbConnectionDetailsResponse> create(@Valid @RequestBody DbConnectionDetailsRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(dbConnectionDetailsService.create(request));
+    }
+
+    @PostMapping("/test")
+    @Operation(summary = "Check that a database can be reached, before registering it",
+            description = "Connects with the details sent and saves nothing. 200 says what answered; "
+                    + "502 says why the database could not be reached.")
+    public ResponseEntity<MessageResponse> testUnsaved(@Valid @RequestBody DbConnectionDetailsRequest request) {
+        return ResponseEntity.ok(queryExecutionService.testUnsaved(request));
+    }
+
+    @PostMapping("/{id}/test")
+    @Operation(summary = "Check that one of your databases can be reached",
+            description = "Without a body, tests the saved settings. With one, tests those settings instead — "
+                    + "leave dbPassword out to use the stored password — so an edit can be tried before "
+                    + "it is saved. Owner only; nothing is saved.")
+    public ResponseEntity<MessageResponse> testSaved(
+            @PathVariable("id") Long id,
+            @Valid @RequestBody(required = false) DbConnectionDetailsRequest request) {
+        return ResponseEntity.ok(queryExecutionService.testSaved(id, request));
     }
 
     @GetMapping("/{id}")
@@ -56,6 +78,10 @@ public class DbConnectionDetailsController {
     }
 
     @DeleteMapping("/{id}")
+    @Operation(summary = "Remove one of your databases from your account",
+            description = "Only the saved connection goes — the database itself is not touched. Its "
+                    + "invitations go with it, so whoever it was shared with loses access; the audit "
+                    + "trail stays.")
     public ResponseEntity<Void> delete(@PathVariable("id") Long id) {
         dbConnectionDetailsService.delete(id);
         return ResponseEntity.noContent().build();

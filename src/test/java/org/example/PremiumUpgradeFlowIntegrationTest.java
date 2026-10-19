@@ -43,7 +43,9 @@ class PremiumUpgradeFlowIntegrationTest {
                         .content("""
                                 {"connectedEmail":"%s"}""".formatted(connected)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString(connected)));
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString(connected)))
+                // Mail is off in the tests: the answer must not claim an email went out
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("server's log")));
 
         mockMvc.perform(get("/api/premium-users").header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())

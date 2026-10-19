@@ -35,7 +35,8 @@ public class User {
     @Column(nullable = false, unique = true, length = 50)
     private String username;
 
-    @Column(nullable = false, unique = true, length = 255)
+    /** Optional: only used to sign in. Premium verifies its own address in {@link PremiumUser}. */
+    @Column(unique = true)
     private String email;
 
     @Column(name = "password_hash", nullable = false)

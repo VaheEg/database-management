@@ -138,6 +138,8 @@ One part per day, in dependency order. Each part builds on the ones before it, s
 - [x] `revoke` — `update` with status REVOKED, sender only
 - [x] incoming / outgoing listing
 - [x] `InvitationController` (send, answer, revoke, list) on `/api/invitations`
+- [x] Invite by username (`toUsername`), and responses that carry names (sender, recipient, permission, database) so a client can show them without more calls
+- [x] The desktop client: Share on an owned database, Invitations to accept or decline, Go Premium to verify an address
 
 **Done when:** User A can grant User B a permission on one DB, and B can accept it.
 
@@ -160,6 +162,7 @@ One part per day, in dependency order. Each part builds on the ones before it, s
 - [x] `QueryController` (`POST /api/db-connections/{id}/query`, `GET /api/db-connections/{id}/schema`)
 - [x] Reject unsupported/dangerous statements — shared users get SELECT/INSERT/UPDATE/DELETE only; DDL and everything else is owner-only; SELECTs run read-only
 - [x] `POST /api/db-connections/{id}/script` — several statements in one transaction (the desktop client saves its table editor this way)
+- [x] `POST /api/db-connections/test` and `/{id}/test` — check settings before they are saved (the desktop client tests on add, edit and sign-up, and offers to fix a database that cannot be reached)
 
 **Done when:** an authorized user runs a query on their external DB and gets rows back.
 
@@ -176,13 +179,16 @@ One part per day, in dependency order. Each part builds on the ones before it, s
 *Goal: production readiness (ongoing).*
 
 - [x] Input validation on all DTOs (`@Valid`, constraints)
+- [x] Email optional at registration — only premium needs an address, and it verifies its own; `SchemaUpgrade` drops the old NOT NULL on `users.email`
 - [x] Email verification for the premium upgrade — `POST /api/premium-users/request-code` then `/confirm`; hashed six-digit code, 10-minute expiry, 5 attempts, 60-second resend interval, and one address per account
+- [x] Codes go out by email once `APP_MAIL_ENABLED` and the `SMTP_*` settings are given; while mail is off, `request-code` says the code went to the log; a refused send is a 502
 - [ ] Turn `app.verification.mail-enabled` on with real SMTP settings before any deployment — while it is off the codes go to the application log
+- [x] Account deletion — password asked again; the account's databases, shares, premium link and profile go with it; audit entries stay without it
 - [ ] Connection pooling / timeouts for external DBs — timeouts done (`app.query.*`), pooling not
 - [ ] Refresh tokens + token expiry handling — logout/revocation done, refresh tokens not
 - [x] SQL injection & statement whitelisting review — `SqlStatementGuard`; host/dbName validated so they cannot inject JDBC URL options
 - [ ] Rate limiting on the query endpoint
-- [ ] Unit + integration tests per service — auth flow and `CryptoService` covered so far
+- [ ] Unit + integration tests per service — auth flow, premium upgrade, sharing and `CryptoService` covered so far
 - [x] API docs (Swagger / OpenAPI) — `/swagger-ui.html`, with an Authorize button for the JWT
 - [x] Secrets from env vars, not config files — `APP_JWT_SECRET`, `APP_CRYPTO_SECRET`, `DB_*`
 

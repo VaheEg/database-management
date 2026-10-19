@@ -27,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -45,12 +46,12 @@ public class AuthService {
     @Transactional
     public AuthResponse register(RegisterRequest request) {
         String username = request.getUsername().trim();
-        String email = request.getEmail().trim().toLowerCase(Locale.ROOT);
+        String email = normalizeEmail(request.getEmail());
 
         if (userRepository.existsByUsername(username)) {
             throw new BadRequestException("Username '" + username + "' is already taken");
         }
-        if (userRepository.existsByEmail(email)) {
+        if (email != null && userRepository.existsByEmail(email)) {
             throw new BadRequestException("Email '" + email + "' is already registered");
         }
 
@@ -82,8 +83,9 @@ public class AuthService {
                         request.getUsername().trim(), request.getPassword()));
 
         AppUserDetails principal = (AppUserDetails) authentication.getPrincipal();
+        assert principal != null;
         List<String> roles = principal.getAuthorities().stream()
-                .map(GrantedAuthority::getAuthority)
+                .map(GrantedAuthority::getAuthority).filter(Objects::nonNull)
                 .map(AuthService::stripRolePrefix)
                 .toList();
 
@@ -112,6 +114,11 @@ public class AuthService {
                 .username(username)
                 .roles(roles)
                 .build();
+    }
+
+    /** The email is optional: a missing or blank one is stored as null, so it never collides. */
+    static String normalizeEmail(String email) {
+        return email == null || email.isBlank() ? null : email.trim().toLowerCase(Locale.ROOT);
     }
 
     private static String stripRolePrefix(String authority) {

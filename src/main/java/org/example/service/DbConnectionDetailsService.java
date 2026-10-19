@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.example.dto.DbConnectionDetailsRequest;
 import org.example.dto.DbConnectionDetailsResponse;
 import org.example.entity.DbConnectionDetails;
+import org.example.entity.Invitation;
 import org.example.entity.InvitationStatus;
 import org.example.entity.User;
 import org.example.exception.AccessDeniedException;
@@ -70,7 +71,7 @@ public class DbConnectionDetailsService {
         List<DbConnectionDetails> visible =
                 new ArrayList<>(dbConnectionDetailsRepository.findByOwnerUserId(callerId));
         invitationRepository.findByToUserIdAndStatus(callerId, InvitationStatus.ACCEPTED).stream()
-                .map(invitation -> invitation.getDbConnection())
+                .map(Invitation::getDbConnection)
                 .filter(shared -> visible.stream().noneMatch(own -> own.getId().equals(shared.getId())))
                 .forEach(visible::add);
 
@@ -104,6 +105,21 @@ public class DbConnectionDetailsService {
         auditLogService.detachConnection(id);
         auditLogService.record(callerId, null, "DB_CONNECTION_DELETED", describe(connection), true);
         dbConnectionDetailsRepository.delete(connection);
+    }
+
+    /**
+     * Every database an account owns, for the account's deletion: what delete() does for each, without an
+     * audit row apiece (the deletion records one). Returns how many there were.
+     */
+    @Transactional
+    public int deleteAllOwnedBy(Long ownerId) {
+        List<DbConnectionDetails> owned = dbConnectionDetailsRepository.findByOwnerUserId(ownerId);
+        for (DbConnectionDetails connection : owned) {
+            invitationRepository.deleteAll(invitationRepository.findByDbConnectionId(connection.getId()));
+            auditLogService.detachConnection(connection.getId());
+            dbConnectionDetailsRepository.delete(connection);
+        }
+        return owned.size();
     }
 
     private DbConnectionDetails findOwnedOrThrow(Long id) {
