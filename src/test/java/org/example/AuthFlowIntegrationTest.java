@@ -12,7 +12,6 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -87,6 +86,25 @@ class AuthFlowIntegrationTest {
     }
 
     @Test
+    void anAccountNeedsNoEmail() throws Exception {
+        for (String body : new String[]{
+                """
+                {"username":"no.mail.one","password":"password123"}""",
+                """
+                {"username":"no.mail.two","email":"","password":"password123"}"""}) {
+            mockMvc.perform(post("/api/auth/register")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(body))
+                    .andExpect(status().isCreated());
+        }
+
+        String token = login("no.mail.one", "password123");
+        mockMvc.perform(get("/api/auth/me").header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.username").value("no.mail.one"));
+    }
+
+    @Test
     void loggingInWithTheWrongPasswordSaysNothingUseful() throws Exception {
         register("secret.user", "secret@example.com", "password123");
 
@@ -96,34 +114,6 @@ class AuthFlowIntegrationTest {
                                 {"username":"secret.user","password":"not-the-password"}"""))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.message").value("Invalid username or password"));
-    }
-
-    @Test
-    void aDeactivatedAccountLooksLikeAWrongPasswordUntilThePasswordIsRight() throws Exception {
-        MvcResult registered = mockMvc.perform(post("/api/auth/register")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"username":"gone.user","email":"gone@example.com","password":"password123"}"""))
-                .andExpect(status().isCreated())
-                .andReturn();
-        JsonNode body = objectMapper.readTree(registered.getResponse().getContentAsString());
-        mockMvc.perform(delete("/api/users/" + body.path("userId").asLong())
-                        .header("Authorization", "Bearer " + body.path("token").asString()))
-                .andExpect(status().is2xxSuccessful());
-
-        mockMvc.perform(post("/api/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"username":"gone.user","password":"not-the-password"}"""))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.message").value("Invalid username or password"));
-
-        mockMvc.perform(post("/api/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {"username":"gone.user","password":"password123"}"""))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.message").value("This account is disabled"));
     }
 
     private String register(String username, String email, String password) throws Exception {

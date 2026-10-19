@@ -74,6 +74,11 @@ public class GlobalExceptionHandler {
                 "The database rejected this change — the row is probably still referenced elsewhere", request);
     }
 
+    @ExceptionHandler(MailDeliveryException.class)
+    public ResponseEntity<ApiError> handleMailDelivery(MailDeliveryException ex, HttpServletRequest request) {
+        return build(HttpStatus.BAD_GATEWAY, ex.getMessage(), request);
+    }
+
     @ExceptionHandler(ExternalDatabaseException.class)
     public ResponseEntity<ApiError> handleExternalDatabase(ExternalDatabaseException ex, HttpServletRequest request) {
         return build(HttpStatus.BAD_GATEWAY, ex.getMessage(), request);

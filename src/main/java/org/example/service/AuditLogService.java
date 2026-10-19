@@ -28,10 +28,11 @@ public class AuditLogService {
     private final DbConnectionDetailsRepository dbConnectionDetailsRepository;
     private final CurrentUserService currentUserService;
 
+    /** userId is null only for what happens to an account as it is deleted. */
     @Transactional
     public void record(Long userId, Long dbConnectionId, String action, String detail, boolean success) {
         AuditLog entry = new AuditLog();
-        entry.setUser(userRepository.getReferenceById(userId));
+        entry.setUser(userId == null ? null : userRepository.getReferenceById(userId));
         if (dbConnectionId != null) {
             entry.setDbConnection(dbConnectionDetailsRepository.getReferenceById(dbConnectionId));
         }
@@ -47,6 +48,15 @@ public class AuditLogService {
         entries.forEach(entry -> entry.setDbConnection(null));
         auditLogRepository.saveAll(entries);
         log.debug("Detached {} audit entr(ies) from connection {}", entries.size(), dbConnectionId);
+    }
+
+    /** Like detachConnection, for an account about to be deleted: other owners keep what it did on their databases. */
+    @Transactional
+    public void detachUser(Long userId) {
+        List<AuditLog> entries = auditLogRepository.findByUserId(userId);
+        entries.forEach(entry -> entry.setUser(null));
+        auditLogRepository.saveAll(entries);
+        log.debug("Detached {} audit entr(ies) from user {}", entries.size(), userId);
     }
 
     @Transactional
@@ -76,7 +86,7 @@ public class AuditLogService {
                 .orElseThrow(() -> NotFoundException.of("Audit entry", id));
         Long callerId = currentUserService.requireId();
 
-        boolean ownEntry = entry.getUser().getId().equals(callerId);
+        boolean ownEntry = entry.getUser() != null && entry.getUser().getId().equals(callerId);
         boolean ownsTheDatabase = entry.getDbConnection() != null
                 && dbConnectionDetailsRepository
                 .findByIdAndOwnerUserId(entry.getDbConnection().getId(), callerId).isPresent();
@@ -121,7 +131,7 @@ public class AuditLogService {
     private static AuditLogResponse toResponse(AuditLog entry) {
         return AuditLogResponse.builder()
                 .id(entry.getId())
-                .userId(entry.getUser().getId())
+                .userId(entry.getUser() == null ? null : entry.getUser().getId())
                 .dbConnectionId(entry.getDbConnection() == null ? null : entry.getDbConnection().getId())
                 .action(entry.getAction())
                 .detail(entry.getDetail())

@@ -14,7 +14,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```
 
 There is no linter or formatter configured. `spring.jpa.hibernate.ddl-auto=update` means Hibernate
-owns the schema — there are no migration scripts, so an entity change is the schema change.
+owns the schema — there are no migration scripts, so an entity change is the schema change. The
+exception is relaxing a constraint, which `update` never does: `config/SchemaUpgrade` makes those
+changes at startup, after checking the catalog (today: `users.email` became nullable).
 
 `application.properties` first imports `~/.spring/databaseManager.properties` when it exists, so a
 developer machine can override anything (datasource, secrets) from outside the repo. `DB_URL`,
@@ -74,16 +76,25 @@ are the only open paths). Everything finer-grained is a service-layer check:
   row for the sender. It asks `premiumUserRepository.existsByUserId`, not the token's authorities,
   because roles are frozen into the JWT at login and an upgrade must not need a re-login to work.
   Only `create` is gated — answering, revoking and deleting stay open to the parties involved.
+  The recipient is named by `toUsername` or `toUserId`; answering or revoking (`PUT`) takes an
+  `InvitationStatusRequest` holding only the new status.
 
 **Auth flow.** `JwtService` issues HS256 tokens carrying `uid`, `roles`, and a `jti`.
 `JwtAuthFilter` rebuilds an `AppUserDetails` straight from the claims (no DB hit) and skips any
 `jti` listed in `RevokedTokenStore` — that in-memory map is the only stateful part of an otherwise
 stateless API, and it is what makes `POST /api/auth/logout` mean anything (a restart forgets
 revocations; a multi-instance deployment would need a shared store). Roles are frozen into the
-token, so a role change only takes effect at the next login. `enabled` is frozen the same way: the
-filter always builds an enabled principal, so deactivating an account (a soft delete) blocks the
-next login but not tokens already issued. Anything that must take effect immediately has to read
-the database, as the premium gate does.
+token, so a role change only takes effect at the next login. Anything that must take effect
+immediately has to read the database, as the premium gate does.
+
+**Deleting an account is real, not a soft delete.** `DELETE /api/users/{id}` takes the password again
+(`AccountDeletionRequest`) and `UserService.delete` removes everything that exists only through the
+account: its databases via `DbConnectionDetailsService.deleteAllOwnedBy` (stored passwords, and every
+share of them, so guests lose access at once), the shares it received, pending codes, and by cascade
+its profile, premium link and role rows. `AuditLogService.detachUser` nulls `audit_logs.user_id` first,
+so other owners keep what it did on their databases. The controller then revokes the presented token;
+other tokens of the account still pass the filter until they expire, but find nothing of it. The
+`enabled` column and the "This account is disabled" mapping remain, though no endpoint clears it now.
 
 **Secrets.** User passwords are BCrypt-hashed. External database passwords must be replayable to
 the target database, so `CryptoService` encrypts them with AES-GCM (fresh IV per value) and
@@ -106,6 +117,14 @@ changing the lexer, err towards rejecting — a `;` it fails to see is a stateme
 `QueryExecutionService` is deliberately not `@Transactional`, so each audit row (successes and
 `QUERY_FAILED`) commits on its own. Host and `dbName` are validated against patterns on
 `DbConnectionDetailsRequest` because they are concatenated into the JDBC URL.
+`POST /api/db-connections/test` and `/{id}/test` connect without saving anything, so the client can
+catch a wrong host or password before it is stored. `/{id}/test` is owner-only even though it is a
+read: an optional body overrides the saved settings with the stored password still used, and anyone
+else could aim that password at a server of their own.
+
+**Email is optional.** `User.email` is nullable: it only lets someone sign in with it.
+`AuthService.normalizeEmail` turns a blank one into null so it never trips the unique constraint.
+The premium address lives in `PREMIUM_USERS` and is verified separately.
 
 **Premium is verified, not asserted.** `POST /api/premium-users/request-code` mails a six-digit
 code and writes *nothing* to `premium_users`; `POST /api/premium-users/confirm` checks it and only
@@ -116,7 +135,11 @@ only a BCrypt hash of the code and both it and `PremiumUserService.confirm` decl
 incremented attempt counter; drop that and the attempt limit silently stops existing. The active
 `VerificationMailSender` is chosen by `app.verification.mail-enabled` — off (the default) logs the
 code instead of sending it, which is what makes the flow testable and what must never be a
-deployment's configuration.
+deployment's configuration. `request-code` says which happened, so nobody waits for an email that was
+never sent. The SMTP side reads `SMTP_HOST`/`SMTP_PORT`/`SMTP_USERNAME`/`SMTP_PASSWORD`/`SMTP_AUTH`/
+`SMTP_STARTTLS`; `SmtpVerificationMailSender` refuses to start without a host, and turns a refused send
+into a `MailDeliveryException` (502, details only in the log). That rolls back the pending code, so the
+user can ask again at once.
 
 **Auditing.** `AuditLogService.record(...)` joins the caller's transaction on purpose — a separate
 transaction cannot see the just-inserted row it references and deadlocks on the foreign key. The
@@ -125,8 +148,9 @@ successes. A failed attempt has to be logged in one of two ways. It can come fro
 transaction after the rollback, or it can be written inside a
 `@Transactional(noRollbackFor = BadRequestException.class)` method before the throw, which is how
 `EmailVerificationService` records wrong codes with `success=false`. The log
-is append-only (no update/delete endpoints), and `detachConnection` nulls the link before a
-connection is deleted so history survives. New mutating operations on connections or invitations
+is append-only (no update/delete endpoints): `detachConnection` and `detachUser` null a link
+before a connection or account is deleted so history survives, which is why `user_id` is nullable
+(`record(null, ...)` is used only for the deletion itself). New mutating operations on connections or invitations
 are expected to write an audit row.
 
 **Errors.** Every failure returns the `ApiError` shape (timestamp/status/error/message/path, plus

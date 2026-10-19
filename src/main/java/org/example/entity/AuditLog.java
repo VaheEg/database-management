@@ -29,15 +29,16 @@ public class AuditLog {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "user_id", nullable = false)
+    /** Null once the account that acted was deleted: the entry stays, who it was does not. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
     private User user;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "db_connection_id")
     private DbConnectionDetails dbConnection;
 
-    @Column(nullable = false, length = 255)
+    @Column(nullable = false)
     private String action;
 
     @Column(length = 2000)

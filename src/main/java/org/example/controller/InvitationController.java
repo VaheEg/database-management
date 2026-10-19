@@ -6,6 +6,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.example.dto.InvitationRequest;
 import org.example.dto.InvitationResponse;
+import org.example.dto.InvitationStatusRequest;
 import org.example.service.InvitationService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -30,7 +31,8 @@ public class InvitationController {
 
     @PostMapping
     @Operation(summary = "Invite a user to one of your databases",
-            description = "Starts as PENDING. Only a premium user who owns that database may send it.")
+            description = "Starts as PENDING. Only a premium user who owns that database may send it. "
+                    + "Name the recipient by toUsername or toUserId; one invitation grants one permission.")
     public ResponseEntity<InvitationResponse> create(@Valid @RequestBody InvitationRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(invitationService.create(request));
     }
@@ -49,7 +51,7 @@ public class InvitationController {
     @Operation(summary = "Answer or revoke an invitation",
             description = "status = ACCEPTED or DECLINED by the recipient, REVOKED by the sender.")
     public ResponseEntity<InvitationResponse> update(@PathVariable("id") Long id,
-                                                     @Valid @RequestBody InvitationRequest request) {
+                                                     @Valid @RequestBody InvitationStatusRequest request) {
         return ResponseEntity.ok(invitationService.update(id, request));
     }
 

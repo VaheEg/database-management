@@ -1,5 +1,6 @@
 package org.example.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -18,9 +19,9 @@ public class UserRequest {
     @Size(max = 50)
     private String username;
 
-    @NotBlank
     @Email
     @Size(max = 255)
+    @Schema(description = "Optional — leave it out to have no sign-in email")
     private String email;
 
     @NotBlank

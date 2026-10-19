@@ -49,8 +49,9 @@ java -jar build/libs/DatabaseManagment-0.0.1-SNAPSHOT.jar
 ## 3. Use it from Swagger
 
 1. Open <http://localhost:8080/swagger-ui.html>
-2. **1. Authentication → POST /api/auth/register** — send a username, email and a
-   password of at least 8 characters. You get back a `token`.
+2. **1. Authentication → POST /api/auth/register** — send a username and a password of
+   at least 8 characters (an `email` is optional; it only lets you sign in with it). You
+   get back a `token`.
 3. Copy the `token` value and click the green **Authorize** button at the top right.
    Paste the raw token (no `Bearer ` prefix — Swagger adds it) and confirm.
 4. Every other endpoint now sends that token. `GET /api/auth/me` is the quickest check.
@@ -61,7 +62,19 @@ To try the premium upgrade without a mail server, call **9. Premium → POST
 /api/premium-users/request-code** and read the six-digit code out of the application log
 (`Verification code for … is …`), then send it to **POST /api/premium-users/confirm**.
 Logging the code instead of sending it is what happens whenever
-`app.verification.mail-enabled` is off, which is the default — see below.
+`app.verification.mail-enabled` is off, which is the default — and the answer to `request-code`
+says so.
+
+To have the codes emailed, turn mail on and name an SMTP server, as environment variables or as
+the matching `spring.mail.*` lines in `~/.spring/databaseManager.properties`:
+
+```bash
+APP_MAIL_ENABLED=true SMTP_HOST=smtp.example.com SMTP_PORT=587 \
+SMTP_USERNAME=you@example.com SMTP_PASSWORD=... APP_MAIL_FROM=you@example.com ./gradlew bootRun
+```
+
+`SMTP_AUTH` and `SMTP_STARTTLS` (both `true` by default) cover servers that need neither. A
+server that refuses a message answers 502; the reason is in the application log.
 
 The same flow with curl:
 
@@ -80,11 +93,11 @@ curl -s -X POST localhost:8080/api/auth/logout -H "Authorization: Bearer $TOKEN"
 | Area | Base path | Notes |
 | --- | --- | --- |
 | Authentication | `/api/auth` | `register`, `login`, `me`, `logout`. Only register and login work without a token. |
-| Users | `/api/users` | Anyone signed in can read; you can only change or deactivate your own account. |
+| Users | `/api/users` | Anyone signed in can read; you can only change or delete your own account (`DELETE` with `{"password": ...}`). |
 | Profiles | `/api/user-information` | Your own personal details, one row per account. |
-| Databases | `/api/db-connections` | Your external databases. Passwords are encrypted at rest and never returned. |
+| Databases | `/api/db-connections` | Your external databases. Passwords are encrypted at rest and never returned. `POST /test` checks unsaved settings; `POST /{id}/test` checks a saved database, or an edit of it before saving (owner only). |
 | Queries | `/api/db-connections/{id}/query`, `/{id}/script`, `/{id}/schema` | `query` runs one statement, `script` several in one transaction. SELECT/INSERT/UPDATE/DELETE need the matching permission; anything else (CREATE/ALTER/DROP, ...) only the owner may run. Every attempt is audited. `schema` lists tables, columns and keys (needs SELECT_ROLE). |
-| Sharing | `/api/invitations` | Premium owner sends, recipient accepts or declines, sender revokes. |
+| Sharing | `/api/invitations` | Premium owner sends (recipient by `toUsername` or `toUserId`, one permission per invitation), recipient accepts or declines, sender revokes — `PUT` takes just `{"status": ...}`. |
 | Audit log | `/api/audit-logs` | Append-only. `/connection/{id}` is the trail for one database, owner only. |
 | Application roles | `/api/roles` | USER, PREMIUM — seeded at startup. |
 | Database permissions | `/api/additional-roles` | SELECT/INSERT/UPDATE/DELETE_ROLE — what an invitation grants. |
@@ -110,6 +123,8 @@ Errors always come back in the same shape:
 - **Sharing is premium-only.** Sending an invitation requires a `PREMIUM_USERS` row, so a
   free account can register databases but cannot hand access to anybody else. The check
   reads that row rather than the token's roles, so an upgrade takes effect immediately.
+  That verified address is the only email the system needs: an account can be registered
+  without one.
 - **Logout** works by remembering the token's `jti` until it would have expired
   (`RevokedTokenStore`). It is in-memory, which means a restart forgets the revocations
   and a multi-instance deployment would need a shared store (Redis, or a small table).
@@ -121,8 +136,10 @@ Errors always come back in the same shape:
   the code is stored, it expires after ten minutes, five wrong guesses destroy it, and one
   address can belong to one account. Changing a connected address goes through the same two
   calls.
-- **Deactivating an account** is a soft delete: `enabled` goes to false so login stops
-  working, while the audit trail and registered databases stay meaningful.
+- **Deleting an account** asks for its password again, and is final: its databases (with their
+  stored passwords and every share of them), the shares it received, its premium link and
+  profile go with it, and the username and email can be registered again. Audit entries stay,
+  without the account, so other owners keep the history of their databases.
 
 ### Configuration worth overriding in a real environment
 
@@ -132,7 +149,7 @@ Errors always come back in the same shape:
 | `app.crypto.secret` | `APP_CRYPTO_SECRET` | Protects stored database passwords. Changing it makes existing ones unreadable. |
 | `app.jwt.expiration` | — | Token lifetime, default `12h`. |
 | `app.verification.mail-enabled` | `APP_MAIL_ENABLED` | **Set it to `true`.** While it is off, verification codes are written to the application log instead of being emailed, so anyone who can read the log can verify anyone's address. |
-| `spring.mail.host` and friends | — | The SMTP server the codes go through. Required once the switch above is on; without it the context will not start. |
+| `spring.mail.host` and friends | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_AUTH`, `SMTP_STARTTLS` | The SMTP server the codes go through. Required once the switch above is on; without a host the context will not start. |
 | `app.verification.mail-from` | `APP_MAIL_FROM` | From address on the code emails. Most providers insist it be one of theirs. |
 | `app.verification.code-ttl` | — | How long a code works, default `10m`. Also `max-attempts` (5) and `resend-interval` (60s). |
 | `springdoc.swagger-ui.enabled` | — | Set to `false` to stop serving the docs. |

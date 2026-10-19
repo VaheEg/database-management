@@ -12,6 +12,7 @@ import org.example.entity.User;
 import org.example.entity.UserRole;
 import org.example.exception.BadRequestException;
 import org.example.exception.NotFoundException;
+import org.example.mail.VerificationProperties;
 import org.example.repository.PremiumUserRepository;
 import org.example.repository.RoleRepository;
 import org.example.repository.UserRepository;
@@ -20,7 +21,6 @@ import org.example.security.CurrentUserService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 
@@ -35,6 +35,7 @@ public class PremiumUserService {
     private final CurrentUserService currentUserService;
     private final EmailVerificationService emailVerificationService;
     private final AuditLogService auditLogService;
+    private final VerificationProperties verificationProperties;
 
     @Transactional(noRollbackFor = BadRequestException.class)
     public MessageResponse requestCode(PremiumUserRequest request) {
@@ -51,9 +52,13 @@ public class PremiumUserService {
             }
         });
 
-        Instant expiresAt = emailVerificationService.issue(userId, email);
-        return new MessageResponse("A verification code was sent to " + email
-                + ". It stops working at " + expiresAt + ".");
+        emailVerificationService.issue(userId, email);
+        long minutes = verificationProperties.getCodeTtl().toMinutes();
+        // Saying "sent" while the code only went to the log leaves people waiting for an email that never comes
+        return new MessageResponse(verificationProperties.isMailEnabled()
+                ? "A verification code was sent to " + email + ". It works for " + minutes + " minutes."
+                : "This server does not send email (app.verification.mail-enabled is off), so the code for "
+                        + email + " was written to the server's log instead. It works for " + minutes + " minutes.");
     }
 
     @Transactional(noRollbackFor = BadRequestException.class)

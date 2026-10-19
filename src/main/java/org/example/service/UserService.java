@@ -1,14 +1,18 @@
 package org.example.service;
 
 import lombok.RequiredArgsConstructor;
+import org.example.dto.AccountDeletionRequest;
 import org.example.dto.UserRequest;
 import org.example.dto.UserResponse;
 import org.example.entity.Role;
 import org.example.entity.RoleName;
 import org.example.entity.User;
 import org.example.entity.UserRole;
+import org.example.exception.AccessDeniedException;
 import org.example.exception.BadRequestException;
 import org.example.exception.NotFoundException;
+import org.example.repository.EmailVerificationRepository;
+import org.example.repository.InvitationRepository;
 import org.example.repository.RoleRepository;
 import org.example.repository.UserRepository;
 import org.example.security.CurrentUserService;
@@ -17,7 +21,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.Locale;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -27,16 +31,20 @@ public class UserService {
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
     private final CurrentUserService currentUserService;
+    private final InvitationRepository invitationRepository;
+    private final EmailVerificationRepository emailVerificationRepository;
+    private final DbConnectionDetailsService dbConnectionDetailsService;
+    private final AuditLogService auditLogService;
 
     @Transactional
     public UserResponse create(UserRequest request) {
         String username = request.getUsername().trim();
-        String email = normalizeEmail(request.getEmail());
+        String email = AuthService.normalizeEmail(request.getEmail());
 
         if (userRepository.existsByUsername(username)) {
             throw new BadRequestException("Username '" + username + "' is already taken");
         }
-        if (userRepository.existsByEmail(email)) {
+        if (email != null && userRepository.existsByEmail(email)) {
             throw new BadRequestException("Email '" + email + "' is already registered");
         }
 
@@ -81,9 +89,9 @@ public class UserService {
             user.setUsername(username);
         }
 
-        String email = normalizeEmail(request.getEmail());
-        if (!email.equals(user.getEmail())) {
-            if (userRepository.existsByEmail(email)) {
+        String email = AuthService.normalizeEmail(request.getEmail());
+        if (!Objects.equals(email, user.getEmail())) {
+            if (email != null && userRepository.existsByEmail(email)) {
                 throw new BadRequestException("Email '" + email + "' is already registered");
             }
             user.setEmail(email);
@@ -93,20 +101,31 @@ public class UserService {
         return toResponse(userRepository.save(user));
     }
 
+    /**
+     * Deletes the account for good, after asking for its password again. What exists only through it goes
+     * too: its databases (and with them their stored passwords and every share of them), the shares it
+     * received, its premium link, profile and pending codes. Audit entries stay, without the account.
+     */
     @Transactional
-    public void delete(Long id) {
-        currentUserService.requireSelf(id, "deactivate your own account");
+    public void delete(Long id, AccountDeletionRequest request) {
+        currentUserService.requireSelf(id, "delete your own account");
         User user = findOrThrow(id);
-        user.setEnabled(false);
-        userRepository.save(user);
+        if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
+            throw new AccessDeniedException("That is not the account's password — nothing was deleted");
+        }
+
+        int databases = dbConnectionDetailsService.deleteAllOwnedBy(id);
+        invitationRepository.deleteAll(invitationRepository.findByToUserId(id));
+        invitationRepository.deleteAll(invitationRepository.findByFromUserId(id));
+        emailVerificationRepository.deleteByUserId(id);
+        auditLogService.detachUser(id);
+        userRepository.delete(user);  // the profile, premium link and role assignments cascade
+        auditLogService.record(null, null, "ACCOUNT_DELETED",
+                "account " + id + " deleted with " + databases + " database(s)", true);
     }
 
     private User findOrThrow(Long id) {
         return userRepository.findById(id).orElseThrow(() -> NotFoundException.of("User", id));
-    }
-
-    private static String normalizeEmail(String email) {
-        return email.trim().toLowerCase(Locale.ROOT);
     }
 
     static UserResponse toResponse(User user) {

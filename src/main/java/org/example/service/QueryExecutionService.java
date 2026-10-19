@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.example.config.QueryProperties;
 import org.example.dto.ColumnSchemaResponse;
 import org.example.dto.DbConnectionDetailsRequest;
+import org.example.dto.MessageResponse;
 import org.example.dto.QueryRequest;
 import org.example.dto.QueryResponse;
 import org.example.dto.ScriptResponse;
@@ -117,6 +118,54 @@ public class QueryExecutionService {
                     + " can run " + inspection.statementType() + " statements — shared access covers "
                     + "single SELECT, INSERT, UPDATE and DELETE statements");
         }
+    }
+
+    /** Connects with details that are not saved yet and says what answered. Nothing is stored. */
+    public MessageResponse testUnsaved(DbConnectionDetailsRequest request) {
+        currentUserService.requireId();
+        if (request.getDbPassword() == null || request.getDbPassword().isBlank()) {
+            throw new BadRequestException("dbPassword is required to test a database that is not saved yet");
+        }
+        return test(unsaved(request), request.getDbPassword());
+    }
+
+    /**
+     * Connects to a saved database — with the changes in {@code request} applied first when there is one,
+     * so an edit can be tried before it is saved. A blank password means the stored one, which is why only
+     * the owner may do this: anybody else could point the owner's password at a server of their own.
+     */
+    public MessageResponse testSaved(Long dbConnectionId, DbConnectionDetailsRequest request) {
+        Long callerId = currentUserService.requireId();
+        DbConnectionDetails saved = dbConnectionDetailsRepository.findByIdAndOwnerUserId(dbConnectionId, callerId)
+                .orElseThrow(() -> dbConnectionDetailsRepository.existsById(dbConnectionId)
+                        ? new AccessDeniedException("Only the owner can test database connection " + dbConnectionId)
+                        : NotFoundException.of("Database connection", dbConnectionId));
+        boolean newPassword = request != null && request.getDbPassword() != null && !request.getDbPassword().isBlank();
+        return test(request == null ? saved : unsaved(request),
+                newPassword ? request.getDbPassword() : cryptoService.decrypt(saved.getDbPassword()));
+    }
+
+    private MessageResponse test(DbConnectionDetails details, String password) {
+        long started = System.nanoTime();
+        try (Connection jdbc = connect(details, password)) {
+            DatabaseMetaData meta = jdbc.getMetaData();
+            return new MessageResponse("Connected to " + meta.getDatabaseProductName() + " "
+                    + meta.getDatabaseProductVersion() + " in " + (System.nanoTime() - started) / 1_000_000 + " ms");
+        } catch (SQLException ex) {
+            throw new ExternalDatabaseException("Connected to " + details.getHost() + ":" + details.getPort() + "/"
+                    + details.getDbName() + " but could not read it: " + ex.getMessage());
+        }
+    }
+
+    /** The details of a request as a connection that is never saved. */
+    private static DbConnectionDetails unsaved(DbConnectionDetailsRequest request) {
+        DbConnectionDetails details = new DbConnectionDetails();
+        details.setHost(request.getHost().trim());
+        details.setPort(request.getPort());
+        details.setDbName(request.getDbName().trim());
+        details.setDbUsername(request.getDbUsername().trim());
+        details.setDbType(request.getDbType());
+        return details;
     }
 
     public List<TableSchemaResponse> schema(Long dbConnectionId) {
@@ -261,12 +310,16 @@ public class QueryExecutionService {
     }
 
     private Connection open(DbConnectionDetails details) {
+        return connect(details, cryptoService.decrypt(details.getDbPassword()));
+    }
+
+    private Connection connect(DbConnectionDetails details, String password) {
         String url = jdbcUrl(details);
         int timeoutSeconds = Math.toIntExact(queryProperties.getConnectTimeout().toSeconds());
 
         Properties props = new Properties();
         props.setProperty("user", details.getDbUsername());
-        props.setProperty("password", cryptoService.decrypt(details.getDbPassword()));
+        props.setProperty("password", password);
         switch (details.getDbType()) {
             case POSTGRESQL -> {
                 props.setProperty("connectTimeout", String.valueOf(timeoutSeconds));
@@ -316,16 +369,12 @@ public class QueryExecutionService {
         if (value == null || value instanceof String || value instanceof Number || value instanceof Boolean) {
             return value;
         }
-        if (value instanceof byte[] bytes) {
-            return "0x" + HexFormat.of().formatHex(bytes, 0, Math.min(bytes.length, MAX_TEXT_LENGTH / 2));
-        }
-        if (value instanceof Clob clob) {
-            return clob.getSubString(1, (int) Math.min(clob.length(), MAX_TEXT_LENGTH));
-        }
-        if (value instanceof Blob blob) {
-            return "<" + blob.length() + " bytes>";
-        }
-        return value.toString();
+        return switch (value) {
+            case byte[] bytes -> "0x" + HexFormat.of().formatHex(bytes, 0, Math.min(bytes.length, MAX_TEXT_LENGTH / 2));
+            case Clob clob -> clob.getSubString(1, (int) Math.min(clob.length(), MAX_TEXT_LENGTH));
+            case Blob blob -> "<" + blob.length() + " bytes>";
+            default -> value.toString();
+        };
     }
 
     private static void rollbackQuietly(Connection jdbc, SQLException cause) {
