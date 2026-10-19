@@ -1,0 +1,20 @@
+package org.example.dto;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.util.List;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class ScriptResponse {
+
+    /** One entry per statement, in the order they ran. */
+    private List<QueryResponse> results;
+
+    private long durationMs;
+}

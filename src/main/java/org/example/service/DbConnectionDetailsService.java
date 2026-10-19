@@ -106,11 +106,6 @@ public class DbConnectionDetailsService {
         dbConnectionDetailsRepository.delete(connection);
     }
 
-    @Transactional(readOnly = true)
-    public String decryptedPassword(Long id) {
-        return cryptoService.decrypt(findOwnedOrThrow(id).getDbPassword());
-    }
-
     private DbConnectionDetails findOwnedOrThrow(Long id) {
         Long callerId = currentUserService.requireId();
         return dbConnectionDetailsRepository.findByIdAndOwnerUserId(id, callerId)

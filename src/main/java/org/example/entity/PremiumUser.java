@@ -33,7 +33,7 @@ public class PremiumUser {
     @JoinColumn(name = "user_id", nullable = false, unique = true)
     private User user;
 
-    @Column(name = "connected_email", nullable = false, length = 255)
+    @Column(name = "connected_email", nullable = false, unique = true, length = 255)
     private String connectedEmail;
 
     @Column(name = "activated_at", nullable = false, updatable = false)

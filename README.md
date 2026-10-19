@@ -83,6 +83,7 @@ curl -s -X POST localhost:8080/api/auth/logout -H "Authorization: Bearer $TOKEN"
 | Users | `/api/users` | Anyone signed in can read; you can only change or deactivate your own account. |
 | Profiles | `/api/user-information` | Your own personal details, one row per account. |
 | Databases | `/api/db-connections` | Your external databases. Passwords are encrypted at rest and never returned. |
+| Queries | `/api/db-connections/{id}/query`, `/{id}/script`, `/{id}/schema` | `query` runs one statement, `script` several in one transaction. SELECT/INSERT/UPDATE/DELETE need the matching permission; anything else (CREATE/ALTER/DROP, ...) only the owner may run. Every attempt is audited. `schema` lists tables, columns and keys (needs SELECT_ROLE). |
 | Sharing | `/api/invitations` | Premium owner sends, recipient accepts or declines, sender revokes. |
 | Audit log | `/api/audit-logs` | Append-only. `/connection/{id}` is the trail for one database, owner only. |
 | Application roles | `/api/roles` | USER, PREMIUM — seeded at startup. |
@@ -140,11 +141,7 @@ Errors always come back in the same shape:
 
 The parts of the plan that remain, in the order they make sense:
 
-- **Query execution** — running SQL against a registered database with the decrypted
-  credentials, mapping the result set, and rejecting statements that are not allowed.
-  `DbConnectionDetailsService.decryptedPassword` and `InvitationService.hasPermission`
-  are the two pieces it needs and are already in place.
-- **A permission enum per SQL verb** (SELECT → `SELECT_ROLE`, and so on) so the check
-  above can be driven straight from a statement.
-- **Refresh tokens**, rate limiting on the query endpoint, and connection pooling and
-  timeouts for the external databases.
+- **Refresh tokens**, rate limiting on the query endpoint, and connection pooling for the
+  external databases (each query opens and closes its own JDBC connection; timeouts are
+  set by `app.query.*`).
+- **Oracle** can be registered but not queried: no Oracle JDBC driver is bundled.

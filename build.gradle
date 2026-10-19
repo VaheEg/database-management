@@ -43,11 +43,12 @@ dependencies {
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
 
-    // Drivers: H2 backs the application's own database; postgres/mysql are also
+    // Drivers: H2 backs the application's own database; postgres/mysql/sqlserver are also
     // the types users register as external databases (Day 9 opens JDBC connections).
     runtimeOnly 'com.h2database:h2'
     runtimeOnly 'org.postgresql:postgresql'
     runtimeOnly 'com.mysql:mysql-connector-j'
+    runtimeOnly 'com.microsoft.sqlserver:mssql-jdbc'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-validation-test'

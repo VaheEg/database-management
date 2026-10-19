@@ -44,10 +44,9 @@ User B can then perform only the granted operation, and only on Database A.
 
 ## 2. Daily build plan
 
-> **Status:** Days 1–7 and 10 are done, and with them the parts of Day 11 that the JWT
+> **Status:** Days 1–10 are done, and with them the parts of Day 11 that the JWT
 > work touches (DTO validation, Swagger/OpenAPI, secrets from the environment).
-> `POST /api/auth/logout` revokes a token. What remains is Day 8's SQL-verb →
-> permission mapping and Day 9's query execution against the registered databases;
+> `POST /api/auth/logout` revokes a token. What remains is the rest of Day 11;
 > see "Not built yet" in the README.
 
 One part per day, in dependency order. Each part builds on the ones before it, so work top to bottom. Check items off as you go.
@@ -145,10 +144,10 @@ One part per day, in dependency order. Each part builds on the ones before it, s
 ### Day 8 — Authorization (the permission model)
 *Goal: enforce database-scoped permissions.*
 
-- [ ] `DbPermission` enum + map SQL verb → required permission
+- [x] `DbPermission` enum + map SQL verb → required permission — `AdditionalRoleName.forSqlVerb`, driven by `SqlStatementGuard`
 - [x] `isOwner` — `DbConnectionDetailsRepository.findByIdAndOwnerUserId`, used by every write path
 - [x] `hasPermission` (owner has all; others need an ACCEPTED invitation for THAT db) — `InvitationService.hasPermission`
-- [ ] `requirePermission` (throws 403 if missing) — needed once queries exist
+- [x] `requirePermission` (throws 403 if missing) — `InvitationService.requirePermission`
 - [x] Verify a permission on DB-A never leaks to the owner's DB-B — the lookup is scoped by `dbConnectionId`
 
 **Done when:** B with UPDATE on DB-A cannot touch DB-B, and cannot DELETE on DB-A.
@@ -156,10 +155,11 @@ One part per day, in dependency order. Each part builds on the ones before it, s
 ### Day 9 — Query execution
 *Goal: run SQL against the user's external DB, permission-checked.*
 
-- [ ] Query DTOs (ExecuteQueryRequest, QueryResult)
-- [ ] `QueryExecutionService`: detect required permission → check authorization → open JDBC connection with decrypted creds → run → map results
-- [ ] `QueryController` (`POST /api/connections/{id}/query`)
-- [ ] Reject unsupported/dangerous statements
+- [x] Query DTOs — `QueryRequest`, `QueryResponse` (plus `TableSchemaResponse` for `GET .../schema`)
+- [x] `QueryExecutionService`: detect required permission → check authorization → open JDBC connection with decrypted creds → run → map results
+- [x] `QueryController` (`POST /api/db-connections/{id}/query`, `GET /api/db-connections/{id}/schema`)
+- [x] Reject unsupported/dangerous statements — shared users get SELECT/INSERT/UPDATE/DELETE only; DDL and everything else is owner-only; SELECTs run read-only
+- [x] `POST /api/db-connections/{id}/script` — several statements in one transaction (the desktop client saves its table editor this way)
 
 **Done when:** an authorized user runs a query on their external DB and gets rows back.
 
@@ -167,7 +167,7 @@ One part per day, in dependency order. Each part builds on the ones before it, s
 *Goal: record who did what, where, and when.*
 
 - [x] `AuditLogService.record` — joins the caller's transaction on purpose; the javadoc explains why a separate one deadlocks on the new row's foreign key
-- [x] Wire audit calls into connection create/update/delete and every invitation change (queries pending)
+- [x] Wire audit calls into connection create/update/delete, every invitation change, and every query attempt
 - [x] `AuditLogController` (`GET /api/audit-logs/connection/{id}` — owner only)
 
 **Done when:** every meaningful action leaves an audit row visible to the owner.
@@ -178,9 +178,9 @@ One part per day, in dependency order. Each part builds on the ones before it, s
 - [x] Input validation on all DTOs (`@Valid`, constraints)
 - [x] Email verification for the premium upgrade — `POST /api/premium-users/request-code` then `/confirm`; hashed six-digit code, 10-minute expiry, 5 attempts, 60-second resend interval, and one address per account
 - [ ] Turn `app.verification.mail-enabled` on with real SMTP settings before any deployment — while it is off the codes go to the application log
-- [ ] Connection pooling / timeouts for external DBs
+- [ ] Connection pooling / timeouts for external DBs — timeouts done (`app.query.*`), pooling not
 - [ ] Refresh tokens + token expiry handling — logout/revocation done, refresh tokens not
-- [ ] SQL injection & statement whitelisting review — belongs with Day 9
+- [x] SQL injection & statement whitelisting review — `SqlStatementGuard`; host/dbName validated so they cannot inject JDBC URL options
 - [ ] Rate limiting on the query endpoint
 - [ ] Unit + integration tests per service — auth flow and `CryptoService` covered so far
 - [x] API docs (Swagger / OpenAPI) — `/swagger-ui.html`, with an Authorize button for the JWT

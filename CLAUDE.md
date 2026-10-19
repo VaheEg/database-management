@@ -16,8 +16,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 There is no linter or formatter configured. `spring.jpa.hibernate.ddl-auto=update` means Hibernate
 owns the schema — there are no migration scripts, so an entity change is the schema change.
 
+`application.properties` first imports `~/.spring/databaseManager.properties` when it exists, so a
+developer machine can override anything (datasource, secrets) from outside the repo. `DB_URL`,
+`DB_USERNAME`, `DB_PASSWORD` and `SERVER_PORT` are also read from the environment.
+
 Tests run under `@ActiveProfiles("h2")`, so the suite never needs PostgreSQL. Anything new that
-boots the context should do the same.
+boots the context should do the same. The integration tests are `@SpringBootTest` + MockMvc and
+drive the real HTTP API end to end. They all share one in-memory database
+(`jdbc:h2:mem:appdb;DB_CLOSE_DELAY=-1`) with no per-test rollback. Even a class that gets its own
+context through `@TestPropertySource` lands in that same database, so every test must register its
+own unique username and email. To make a premium user in a test, call `request-code`, read the code
+back from the autowired `LoggingVerificationMailSender.lastCodeFor(email)`, then `confirm` (see
+`upgradeToPremium` in `InvitationPremiumGateIntegrationTest`). The same user cannot request a
+second code within `app.verification.resend-interval` (60s).
 
 ## Version-specific gotchas
 
@@ -35,7 +46,9 @@ Classic layering under `org.example`: `controller` (thin, `@Valid` + Swagger ann
 `service` (all business rules, authorization, and auditing) → `repository` → `entity`. DTOs are
 separate request/response classes; entities never cross the HTTP boundary. Lombok is used
 throughout (`@RequiredArgsConstructor` constructor injection, `@Getter/@Setter`, `@Builder` on
-response DTOs).
+response DTOs). Each service maps its own entities with a hand-written `private static toResponse`;
+there is no mapper library. Each controller carries a numbered `@Tag(name = "N. Area")`. Swagger
+sorts tags alphabetically, so the number is what sets their order in the UI.
 
 **Two independent role systems, deliberately not merged.**
 `Role`/`RoleName` (USER, PREMIUM) are application tiers; they live in the JWT and become Spring
@@ -67,14 +80,32 @@ are the only open paths). Everything finer-grained is a service-layer check:
 `jti` listed in `RevokedTokenStore` — that in-memory map is the only stateful part of an otherwise
 stateless API, and it is what makes `POST /api/auth/logout` mean anything (a restart forgets
 revocations; a multi-instance deployment would need a shared store). Roles are frozen into the
-token, so a role change only takes effect at the next login.
+token, so a role change only takes effect at the next login. `enabled` is frozen the same way: the
+filter always builds an enabled principal, so deactivating an account (a soft delete) blocks the
+next login but not tokens already issued. Anything that must take effect immediately has to read
+the database, as the premium gate does.
 
 **Secrets.** User passwords are BCrypt-hashed. External database passwords must be replayable to
 the target database, so `CryptoService` encrypts them with AES-GCM (fresh IV per value) and
-`DbConnectionDetailsResponse` has no password field at all. `decryptedPassword(id)` is owner-only
-and exists for the not-yet-built query execution. Both `app.jwt.secret` and `app.crypto.secret`
-default to dev values in `application.properties` and must be overridden via `APP_JWT_SECRET` /
-`APP_CRYPTO_SECRET`; changing the crypto secret makes stored database passwords unreadable.
+`DbConnectionDetailsResponse` has no password field at all. Only `QueryExecutionService` decrypts
+one, after the permission check, so a shared user's query runs with the owner's stored
+credentials. Both `app.jwt.secret` and `app.crypto.secret` default to dev values in
+`application.properties` and must be overridden via `APP_JWT_SECRET` / `APP_CRYPTO_SECRET`;
+changing the crypto secret makes stored database passwords unreadable.
+
+**Queries.** `POST /api/db-connections/{id}/query` (one statement), `.../script` (`;`-separated
+statements in one transaction) and `GET .../schema` open a fresh JDBC connection per call
+(timeouts and the row cap come from `app.query.*`). The backend only executes: the desktop client
+generates all SQL, including the CREATE/ALTER/INSERT/UPDATE/DELETE that save its table editor.
+`SqlStatementGuard` is the security boundary for shared users: it lexes per `DbType` (literals,
+quoted identifiers, comments), splits scripts, and maps each SELECT/INSERT/UPDATE/DELETE through
+`AdditionalRoleName.forSqlVerb` to `InvitationService.requirePermission`. Anything else (DDL, a
+data-modifying CTE, `SELECT ... INTO`) is owner-only — the owner holds the credentials anyway.
+Every statement is authorized before the first runs; SELECT-only work runs read-only. When
+changing the lexer, err towards rejecting — a `;` it fails to see is a statement it never checked.
+`QueryExecutionService` is deliberately not `@Transactional`, so each audit row (successes and
+`QUERY_FAILED`) commits on its own. Host and `dbName` are validated against patterns on
+`DbConnectionDetailsRequest` because they are concatenated into the JDBC URL.
 
 **Premium is verified, not asserted.** `POST /api/premium-users/request-code` mails a six-digit
 code and writes *nothing* to `premium_users`; `POST /api/premium-users/confirm` checks it and only
@@ -90,7 +121,10 @@ deployment's configuration.
 **Auditing.** `AuditLogService.record(...)` joins the caller's transaction on purpose — a separate
 transaction cannot see the just-inserted row it references and deadlocks on the foreign key. The
 consequence is that an audit entry rolls back with the action it describes, so `record` documents
-successes; a failed attempt has to be logged from a fresh transaction after the rollback. The log
+successes. A failed attempt has to be logged in one of two ways. It can come from a fresh
+transaction after the rollback, or it can be written inside a
+`@Transactional(noRollbackFor = BadRequestException.class)` method before the throw, which is how
+`EmailVerificationService` records wrong codes with `success=false`. The log
 is append-only (no update/delete endpoints), and `detachConnection` nulls the link before a
 connection is deleted so history survives. New mutating operations on connections or invitations
 are expected to write an audit row.
@@ -99,12 +133,15 @@ are expected to write an audit row.
 `fieldErrors` for validation). Throw the project's `NotFoundException` / `BadRequestException` /
 `org.example.exception.AccessDeniedException` — `GlobalExceptionHandler` maps them, and also
 flattens both login failure modes into one "Invalid username or password" so accounts cannot be
-enumerated.
+enumerated. A `DataIntegrityViolationException` comes back as 409, an
+`UnsupportedOperationException` as 501, and an `ExternalDatabaseException` (a registered database
+could not be reached) as 502. A 401 or 403 raised in the filter chain, before a
+controller runs, is written by `SecurityConfig`'s entry point and access-denied handler, in the same
+`ApiError` shape.
 
 ## Roadmap
 
 `src/main/resources/db-manager-project.md` is the day-by-day plan with checkboxes and is the
-authority on what is done. Outstanding: the SQL-verb → `AdditionalRoleName` mapping and
-`requirePermission` (Day 8), and query execution against registered databases over JDBC (Day 9);
-then refresh tokens, rate limiting, and external-connection pooling. Keep that file and the
-README's "Not built yet" section in step when a piece lands.
+authority on what is done. Outstanding: refresh tokens, rate limiting on the query endpoint, and
+external-connection pooling. Keep that file and the README's "Not built yet" section in step when
+a piece lands.

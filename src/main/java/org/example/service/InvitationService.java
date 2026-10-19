@@ -172,6 +172,14 @@ public class InvitationService {
                 userId, dbConnectionId, permission, InvitationStatus.ACCEPTED);
     }
 
+    @Transactional(readOnly = true)
+    public void requirePermission(Long userId, Long dbConnectionId, AdditionalRoleName permission) {
+        if (!hasPermission(userId, dbConnectionId, permission)) {
+            throw new AccessDeniedException("You need " + permission + " on database connection "
+                    + dbConnectionId + " — ask its owner for an invitation");
+        }
+    }
+
     private void rejectDuplicate(Long recipientId, Long connectionId, AdditionalRole permission) {
         for (InvitationStatus status : List.of(InvitationStatus.PENDING, InvitationStatus.ACCEPTED)) {
             invitationRepository.findByToUserIdAndDbConnectionIdAndAdditionalRoleNameAndStatus(
